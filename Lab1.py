@@ -44,7 +44,7 @@ def rectangle(bot, length = 2, width = 4):
     bot.set_left_motor_speed(50)
     time.sleep(width/2)
 
-def turn(bot, angle, rpm = 50):
+def turn(bot, angle, rpm = 25):
     theta = math.radians(angle)
     #50 rpm approx 5.233 rad/s
     #rad/s * radius = velocity of the wheel
