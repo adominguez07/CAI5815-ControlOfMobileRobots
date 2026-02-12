@@ -53,6 +53,7 @@ def turn(bot, angle, rpm = 50):
     angular_velocity_L = rpm / 75 * 7.85
     V_right = angular_velocity_R * radius
     V_left = angular_velocity_L * radius
+    V_right = -V_right
 
     angular_robot = (V_left - V_right) / wheelbase
     time_to_turn = theta / angular_robot
