@@ -11,7 +11,7 @@ def rectangle(bot, length = 2, width = 4):
     #turn 90 degrees
     bot.set_right_motor_speed(-50)
     bot.set_left_motor_speed(50)
-    time.sleep(1)  # Adjust sleep time as needed
+    time.sleep(.5)  # Adjust sleep time as needed
     #move the length (east)
     bot.set_right_motor_speed(75)
     bot.set_left_motor_speed(75)
@@ -19,6 +19,7 @@ def rectangle(bot, length = 2, width = 4):
     #turn 90 degrees    bot.set_right_motor_speed(-50)
     bot.set_left_motor_speed(50)
     bot.set_right_motor_speed(-50)
+    time.sleep(.5)
     #width(facing south)
     bot.set_right_motor_speed(75)
     bot.set_left_motor_speed(75)
@@ -26,7 +27,7 @@ def rectangle(bot, length = 2, width = 4):
     #turn 90 degrees
     bot.set_right_motor_speed(-50)  
     bot.set_left_motor_speed(50)
-    time.sleep(1)
+    time.sleep(.5)
     #length(facing west)
     bot.set_right_motor_speed(75)
     bot.set_left_motor_speed(75)
@@ -34,7 +35,7 @@ def rectangle(bot, length = 2, width = 4):
     #turn 90 degrees
     bot.set_right_motor_speed(-50)
     bot.set_left_motor_speed(50)
-    time.sleep(1)
+    time.sleep(.5)
     #width(facing north)
     bot.set_right_motor_speed(50)
     bot.set_left_motor_speed(50)
