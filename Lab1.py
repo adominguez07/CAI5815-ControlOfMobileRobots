@@ -1,8 +1,8 @@
-from HamBot.src.robot_systems.robot import Hambot
+from HamBot.src.robot_systems.robot import HamBot
 import time
 
 def main():
-    bot = Hambot()
+    bot = HamBot()
     bot.start()
     bot.left_wheel.set_speed(50)
     bot.right_wheel.set_speed(50)
