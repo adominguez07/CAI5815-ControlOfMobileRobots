@@ -12,39 +12,30 @@ def rectangle(bot, length = 2, width = 4):
     bot.set_left_motor_speed(50)
     time.sleep(width/2)
     #turn 90 degrees
-    bot.set_right_motor_speed(-50)
-    bot.set_left_motor_speed(50)
-    time.sleep(.5)  # Adjust sleep time as needed
+    turn(bot, 90)
     #move the length (east)
     bot.set_right_motor_speed(75)
     bot.set_left_motor_speed(75)
     time.sleep(length)
-    #turn 90 degrees    bot.set_right_motor_speed(-50)
-    bot.set_left_motor_speed(50)
-    bot.set_right_motor_speed(-50)
-    time.sleep(.5)
+    #turn 90 degrees   
+    turn(bot, 90)
     #width(facing south)
     bot.set_right_motor_speed(75)
     bot.set_left_motor_speed(75)
     time.sleep(width)
     #turn 90 degrees
-    bot.set_right_motor_speed(-50)  
-    bot.set_left_motor_speed(50)
-    time.sleep(.5)
     #length(facing west)
+    turn(bot, 90)
     bot.set_right_motor_speed(75)
     bot.set_left_motor_speed(75)
     time.sleep(length)
-    #turn 90 degrees
-    bot.set_right_motor_speed(-50)
-    bot.set_left_motor_speed(50)
-    time.sleep(.5)
+    turn(bot, 90)
     #width(facing north)
     bot.set_right_motor_speed(50)
     bot.set_left_motor_speed(50)
     time.sleep(width/2)
 
-def turn(bot, angle, rpm = 25):
+def turn(bot, angle, rpm = 20):
     theta = math.radians(angle)
     #50 rpm approx 5.233 rad/s
     #rad/s * radius = velocity of the wheel
@@ -68,8 +59,8 @@ def CW_circle(bot, radius = 2):
     pass
 def main():
     bot = HamBot(lidar_enabled=False, camera_enabled=False)
-    #rectangle(bot)
-    turn(bot, 90)
+    rectangle(bot)
+    #turn(bot, 90)
     bot.disconnect_robot()
     return 0
 
