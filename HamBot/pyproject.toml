@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robot_systems"
+version = "0.2.0"
+description = "HamBot: Python robotics stack for Raspberry Pi (IMU, LiDAR, camera, LEGO Build HAT)."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [{ name = "Chance J. Hamilton" }]
+keywords = ["robotics", "imu", "lidar", "camera", "buildhat", "raspberry-pi"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+  "sshkeyboard",
+  "buildhat",
+  "Adafruit-Blinka",
+  "adafruit-circuitpython-bno055",
+  "adafruit-circuitpython-rplidar"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "black",
+  "mypy"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["robot_systems*"]
