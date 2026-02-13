@@ -83,7 +83,7 @@ def CW_circle(bot, radius_arc = 0.5):
     pass
 def main():
     bot = HamBot(lidar_enabled=False, camera_enabled=False)
-    CCW_circle(bot, 1)
+    #CCW_circle(bot, 1)
     CW_circle(bot, 0.5)
     #rectangle(bot)
     #turn(bot, 90)
