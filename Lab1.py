@@ -55,7 +55,7 @@ def turn(bot, angle, rpm = 20):
 
 def CCW_circle(bot, radius_arc = 1):
     #velocity needed to complete in 5 sec
-    angular_velocity_robot = 2 * math.pi /10
+    angular_velocity_robot = 2 * math.pi / 50
     #velocity_robot = angular_velocity_robot * radius_arc
     velocity_right = angular_velocity_robot * (radius_arc + wheelbase/2)
     velocity_left = angular_velocity_robot * (radius_arc - wheelbase/2)
