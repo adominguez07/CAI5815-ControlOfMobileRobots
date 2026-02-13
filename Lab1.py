@@ -63,7 +63,7 @@ def CCW_circle(bot, radius_arc = 1):
     angular_velocity_L = velocity_left / radius
     rpm_R = angular_velocity_R / 7.85 * 75
     rpm_L = angular_velocity_L / 7.85 * 75
-    T = 2 * math.pi * radius_arc / angular_velocity_robot
+    T = 2 * math.pi/ angular_velocity_robot
     bot.set_right_motor_speed(rpm_R)
     bot.set_left_motor_speed(rpm_L)   
     time.sleep(T)
@@ -76,7 +76,7 @@ def CW_circle(bot, radius_arc = 0.5):
     angular_velocity_L = velocity_left / radius
     rpm_R = angular_velocity_R / 7.85 * 75
     rpm_L = angular_velocity_L / 7.85 * 75
-    T = 2 * math.pi * radius_arc / angular_velocity_robot
+    T = 2 * math.pi / angular_velocity_robot
     bot.set_right_motor_speed(rpm_R)
     bot.set_left_motor_speed(rpm_L)   
     time.sleep(T)
