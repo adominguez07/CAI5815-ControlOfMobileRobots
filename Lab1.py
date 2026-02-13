@@ -53,13 +53,26 @@ def turn(bot, angle, rpm = 20):
     bot.set_left_motor_speed(rpm)
     time.sleep(time_to_turn)
 
-def CCW_circle(bot, radius = 1):
-    pass
+def CCW_circle(bot, radius_arc = 1):
+    #velocity needed to complete in 5 sec
+    angular_velocity_robot = 2 * math.pi / 5
+    #velocity_robot = angular_velocity_robot * radius_arc
+    velocity_right = angular_velocity_robot * (radius_arc + wheelbase/2)
+    velocity_left = angular_velocity_robot * (radius_arc - wheelbase/2)
+    angular_velocity_R = velocity_right / radius
+    angular_velocity_L = velocity_left / radius
+    rpm_R = angular_velocity_R / 7.85 * 75
+    rpm_L = angular_velocity_L / 7.85 * 75
+    T = 2 * math.pi * radius_arc / angular_velocity_robot
+    bot.set_right_motor_speed(rpm_R)
+    bot.set_left_motor_speed(rpm_L)   
+    time.sleep(T)
 def CW_circle(bot, radius = 2):
     pass
 def main():
     bot = HamBot(lidar_enabled=False, camera_enabled=False)
-    rectangle(bot)
+    CCW_circle(bot, 1)
+    #rectangle(bot)
     #turn(bot, 90)
     bot.disconnect_robot()
     return 0
