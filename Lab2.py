@@ -16,7 +16,7 @@ def approach_wall(bot, distance = 0.5):
 
     while True:
         #get distance from Lidar
-        current_distance = bot.get_lidar_distance()
+        current_distance = bot.get_range_image()
         error = distance - current_distance
         error_sum += error
         error_diff = error - last_error
