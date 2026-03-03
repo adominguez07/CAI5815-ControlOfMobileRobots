@@ -8,113 +8,86 @@ def saturation(bot, rpm):
     return max(-max_rpm, min(max_rpm, rpm))
 
 
-# ======== Encoder Constants (from HamBot repo) ========
-WHEEL_RADIUS = 0.045  # meters
-TICKS_PER_REV = 960   # 20 CPR * 48:1 gearbox
-
-
-def distance_to_ticks(distance_mm):
-    distance_m = distance_mm / 1000.0
-    wheel_circumference = 2 * math.pi * WHEEL_RADIUS
-    revolutions = distance_m / wheel_circumference
-    return revolutions * TICKS_PER_REV
-
-
-class Definitions():
+class LidarController:
     def __init__(self):
-        self.K_p = 0.10
-        self.K_i = 0.15
-        self.K_d = 1.5
-        self.Timestep = 0.025
-        self.Integral = 0.0
-        self.PrevError = 0.0
+        self.Kp = 0.12
+        self.Kd = 0.8
+        self.dt = 0.03
+        self.prev_error = 0.0
+        self.stop_band = 15  # mm tolerance
 
-        self.StopBand = 10.0  # mm
-        self.I_Limit = 200.0
-        self.ApproachSlope = 0.5
-        self.MinApproachRPM = 6.0
-
-    def forward_PID(self, bot, desired_distance):
+    def get_front_distance(self, bot):
         scan = bot.get_range_image()
-        window = [a for a in scan[175:180] if a and a > 0]
+        window = [a for a in scan[175:185] if a > 0]
         if not window:
-            return 0.0
+            return float("inf")
+        return min(window)
 
-        measured_distance = min(window)
-        error = measured_distance - desired_distance
+    def forward_control(self, bot, target_mm):
+        distance = self.get_front_distance(bot)
+        error = distance - target_mm
 
-        if abs(error) <= self.StopBand:
-            self.Integral = 0.0
-            self.PrevError = 0.0
-            return 0.0
+        if abs(error) <= self.stop_band:
+            self.prev_error = 0
+            return 0.0, distance
 
-        self.Integral += error * self.Timestep
-        self.Integral = max(-self.I_Limit, min(self.Integral, self.I_Limit))
+        derivative = (error - self.prev_error) / self.dt
+        self.prev_error = error
 
-        derivative = (error - self.PrevError) / self.Timestep
-        self.PrevError = error
-
-        u = (self.K_p * error) + (self.K_i * self.Integral) + (self.K_d * derivative)
-
-        cap = max(self.MinApproachRPM, self.ApproachSlope * abs(error))
-        u = math.copysign(min(abs(u), cap), u)
-
-        return saturation(bot, u)
+        u = self.Kp * error + self.Kd * derivative
+        return saturation(bot, u), distance
 
 
 if __name__ == "__main__":
     Bot = HamBot(lidar_enabled=True, camera_enabled=False)
     Bot.max_motor_speed = 60
 
-    desired_distance = 600  # mm
-    controller = Definitions()
+    controller = LidarController()
 
-    # ===== LIDAR WALL APPROACH =====
+    # ===== STEP 1: STOP 2 FEET AWAY =====
+    target_2ft = 610  # mm
+
     while True:
-        forward_distance = min(
-            [a for a in Bot.get_range_image()[175:180] if a > 0] or [float("inf")]
-        )
+        u, dist = controller.forward_control(Bot, target_2ft)
+        print("2ft stage | v:", u, "dist:", dist)
 
-        forward_velocity = controller.forward_PID(Bot, desired_distance)
-
-        print("v=", forward_velocity, "dist=", forward_distance)
-
-        if forward_distance != float("inf") and \
-           abs(forward_distance - desired_distance) <= controller.StopBand:
+        if u == 0:
             Bot.stop_motors()
             break
 
-        Bot.set_left_motor_speed(forward_velocity)
-        Bot.set_right_motor_speed(forward_velocity)
-        time.sleep(controller.Timestep)
+        Bot.set_left_motor_speed(u)
+        Bot.set_right_motor_speed(u)
+        time.sleep(controller.dt)
 
-    # ===== ENCODER MOVE FORWARD 300 mm =====
-    Bot.reset_encoders()
+    time.sleep(1)
 
-    target_ticks = distance_to_ticks(300)
-    stop_ticks = distance_to_ticks(controller.StopBand)
+    # ===== STEP 2: STOP 1 FOOT AWAY =====
+    target_1ft = 305  # mm
 
     while True:
-        left = Bot.get_left_encoder_reading()
-        right = Bot.get_right_encoder_reading()
-        avg_ticks = (left + right) / 2
+        u, dist = controller.forward_control(Bot, target_1ft)
+        print("1ft stage | v:", u, "dist:", dist)
 
-        error = target_ticks - avg_ticks
-
-        if abs(error) <= stop_ticks:
+        if u == 0:
             Bot.stop_motors()
             break
 
-        # Proportional encoder control
-        Kp_enc = 0.006
-        u_enc = Kp_enc * error
-        u_enc = saturation(Bot, u_enc)
+        Bot.set_left_motor_speed(u)
+        Bot.set_right_motor_speed(u)
+        time.sleep(controller.dt)
 
-        # Prevent creeping
-        if abs(u_enc) < 5:
-            u_enc = 0
+    time.sleep(1)
 
-        Bot.set_left_motor_speed(u_enc)
-        Bot.set_right_motor_speed(u_enc)
+    # ===== STEP 3: TURN 180° =====
+    print("Turning 180 degrees")
 
-        time.sleep(controller.Timestep)
+    turn_speed = 30
+    turn_time = 2.1   # adjust slightly if needed
+
+    Bot.set_left_motor_speed(turn_speed)
+    Bot.set_right_motor_speed(-turn_speed)
+
+    time.sleep(turn_time)
+    Bot.stop_motors()
+
+    print("Done.")
