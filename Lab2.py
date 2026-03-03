@@ -175,29 +175,34 @@ def encoder_forward_2ft(bot):
 
     bot.reset_encoders()
 
-    Kp = 0.01
+    Kp = 0.02
+    Kd = 0.05
     dt = 0.02
+
+    prev_error = 0
     stop_band = distance_to_ticks(8)
 
     while True:
         left = bot.get_left_encoder_reading()
         right = bot.get_right_encoder_reading()
-
-        avg_ticks = (abs(left) + abs(right)) / 2
+        avg_ticks = (left + right) / 2
 
         error = target_ticks - avg_ticks
 
-        print("L:", left, "R:", right, "AVG:", avg_ticks, "ERR:", error)
+        print("AVG:", avg_ticks, "ERR:", error)
 
         if abs(error) <= stop_band:
             bot.stop_motors()
             break
 
-        u = Kp * error
+        derivative = (error - prev_error) / dt
+        prev_error = error
 
-        # Proper deceleration curve
-        cap = clamp(0.01 * abs(error), 15, 60)
-        u = min(u, cap)
+        u = Kp * error + Kd * derivative
+
+        # MUCH stronger speed cap
+        cap = clamp(0.02 * abs(error), 20, 60)
+        u = math.copysign(min(abs(u), cap), u)
 
         bot.set_left_motor_speed(saturation(bot, u))
         bot.set_right_motor_speed(saturation(bot, u))
