@@ -8,7 +8,7 @@ def saturation(bot, rpm):
     return max(-max_rpm, min(max_rpm, rpm))
 
 
-# ======== Encoder Constants from HamBot Repo ========
+# ======== Encoder Constants (from HamBot repo) ========
 WHEEL_RADIUS = 0.045  # meters
 TICKS_PER_REV = 960   # 20 CPR * 48:1 gearbox
 
@@ -20,12 +20,6 @@ def distance_to_ticks(distance_mm):
     return revolutions * TICKS_PER_REV
 
 
-def ticks_to_distance(ticks):
-    wheel_circumference = 2 * math.pi * WHEEL_RADIUS
-    revolutions = ticks / TICKS_PER_REV
-    return revolutions * wheel_circumference * 1000  # mm
-
-
 class Definitions():
     def __init__(self):
         self.K_p = 0.10
@@ -35,7 +29,7 @@ class Definitions():
         self.Integral = 0.0
         self.PrevError = 0.0
 
-        self.StopBand = 10.0
+        self.StopBand = 10.0  # mm
         self.I_Limit = 200.0
         self.ApproachSlope = 0.5
         self.MinApproachRPM = 6.0
@@ -98,6 +92,7 @@ if __name__ == "__main__":
     Bot.reset_encoders()
 
     target_ticks = distance_to_ticks(300)
+    stop_ticks = distance_to_ticks(controller.StopBand)
 
     while True:
         left = Bot.get_left_encoder_reading()
@@ -106,13 +101,18 @@ if __name__ == "__main__":
 
         error = target_ticks - avg_ticks
 
-        if abs(ticks_to_distance(error)) <= controller.StopBand:
+        if abs(error) <= stop_ticks:
             Bot.stop_motors()
             break
 
-        # Scaled proportional gain for encoder control
-        Kp_enc = 0.003
-        u_enc = saturation(Bot, Kp_enc * error)
+        # Proportional encoder control
+        Kp_enc = 0.006
+        u_enc = Kp_enc * error
+        u_enc = saturation(Bot, u_enc)
+
+        # Prevent creeping
+        if abs(u_enc) < 5:
+            u_enc = 0
 
         Bot.set_left_motor_speed(u_enc)
         Bot.set_right_motor_speed(u_enc)
