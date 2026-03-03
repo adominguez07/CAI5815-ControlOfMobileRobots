@@ -201,7 +201,7 @@ def encoder_forward_2ft(bot):
 # -----------------------------
 if __name__ == "__main__":
 
-    Bot = HamBot(lidar_enabled=True, camera_enabled=False, encoder_enabled=True)
+    Bot = HamBot(lidar_enabled=True, camera_enabled=False)
     Bot.max_motor_speed = 60
 
     lidar_pid = LidarPID()
