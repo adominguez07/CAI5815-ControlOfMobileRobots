@@ -168,56 +168,40 @@ def distance_to_ticks(distance_mm):
     wheel_circumference = 2 * math.pi * WHEEL_RADIUS
     revolutions = distance_m / wheel_circumference
     return revolutions * 7.5
-
 def encoder_forward_2ft(bot):
-    target_mm = 610
-    target_ticks = distance_to_ticks(target_mm)
+    target = 16  # known encoder value for 2 feet
 
     bot.reset_encoders()
-
-    Kp = 0.02
-    Kd = 0.05
-    dt = 0.02
-
-    prev_error = 0
-    stop_band = distance_to_ticks(8)
+    time.sleep(0.2)
 
     while True:
         left = bot.get_left_encoder_reading()
         right = bot.get_right_encoder_reading()
-        avg_ticks = (left + right) / 2
+        avg = (left + right) / 2
 
-        error = target_ticks - avg_ticks
+        print("AVG:", avg)
 
-        print("AVG:", avg_ticks, "ERR:", error)
+        error = target - avg
 
-        if abs(error) <= stop_band:
+        if abs(error) <= 0.5:
             bot.stop_motors()
             break
 
-        derivative = (error - prev_error) / dt
-        prev_error = error
+        # Simple proportional only
+        u = 40  # constant strong speed
 
-        u = Kp * error + Kd * derivative
+        bot.set_left_motor_speed(u)
+        bot.set_right_motor_speed(u)
 
-        # MUCH stronger speed cap
-        cap = clamp(0.02 * abs(error), 20, 60)
-        u = math.copysign(min(abs(u), cap), u)
+        time.sleep(0.02)
 
-        bot.set_left_motor_speed(saturation(bot, u))
-        bot.set_right_motor_speed(saturation(bot, u))
-
-        time.sleep(dt)
-
-    bot.stop_motors()
-    time.sleep(0.5)
-    
+    bot.stop_motors()   
 # -----------------------------
 # Main Program
 # -----------------------------
 if __name__ == "__main__":
 
-    Bot = HamBot(lidar_enabled=True, camera_enabled=False)
+    Bot = HamBot(lidar_enabled=True, camera_enabled=False, encoder_enabled=True)
     Bot.max_motor_speed = 60
 
     lidar_pid = LidarPID()
@@ -227,28 +211,28 @@ if __name__ == "__main__":
     ONE_FOOT = 305
 
     print("\nTask 1: Stop at 2 ft")
-    lidar_move(Bot, lidar_pid, TWO_FEET)
+    #lidar_move(Bot, lidar_pid, TWO_FEET)
 
     print("\nTask 2: Move to 1 ft")
-    lidar_move(Bot, lidar_pid, ONE_FOOT)
+    #lidar_move(Bot, lidar_pid, ONE_FOOT)
 
     print("\nTask 3: Backup to 2 ft")
-    lidar_move(Bot, lidar_pid, TWO_FEET)
+    #lidar_move(Bot, lidar_pid, TWO_FEET)
 
     print("\nTask 4: Rotate 180° clockwise")
-    imu_rotate(Bot, imu_pid, -180)
+    #imu_rotate(Bot, imu_pid, -180)
 
     print("\nTask 5: Stop at 2 ft (repeat)")
-    lidar_move(Bot, lidar_pid, TWO_FEET)
+    #lidar_move(Bot, lidar_pid, TWO_FEET)
 
     print("\nTask 6: Move to 1 ft (repeat)")
-    lidar_move(Bot, lidar_pid, ONE_FOOT)
+    #lidar_move(Bot, lidar_pid, ONE_FOOT)
 
     print("\nTask 7: Backup to 2 ft (repeat)")
-    lidar_move(Bot, lidar_pid, TWO_FEET)
+    #lidar_move(Bot, lidar_pid, TWO_FEET)
 
     print("\nTask 8: Rotate 180° counterclockwise")
-    imu_rotate(Bot, imu_pid, 180)
+    #imu_rotate(Bot, imu_pid, 180)
 
     print("\nTask 9: Encoder PID drive forward 2 ft")
     encoder_forward_2ft(Bot)
