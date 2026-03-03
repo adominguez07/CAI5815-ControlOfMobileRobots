@@ -42,15 +42,15 @@ def angle_error(target, current):
 
 
 # -----------------------------
-# LiDAR PID Controller
+# FAST LiDAR PID Controller
 # -----------------------------
 class LidarPID:
     def __init__(self):
-        self.Kp = 0.12
-        self.Kd = 0.8
-        self.dt = 0.03
+        self.Kp = 0.20
+        self.Kd = 1.2
+        self.dt = 0.02
         self.prev_error = 0.0
-        self.stop_band = 15  # mm
+        self.stop_band = 12  # tighter stop
 
     def reset(self):
         self.prev_error = 0.0
@@ -67,20 +67,22 @@ class LidarPID:
         self.prev_error = error
 
         u = self.Kp * error + self.Kd * derivative
-        cap = clamp(0.06 * abs(error), 6, 40)
+
+        # Faster speed ramp
+        cap = clamp(0.15 * abs(error), 10, 60)
         u = math.copysign(min(abs(u), cap), u)
 
         return saturation(bot, u), dist
 
 
 # -----------------------------
-# IMU PID Controller
+# IMU PID Controller (faster)
 # -----------------------------
 class IMUPID:
     def __init__(self):
-        self.Kp = 0.9
-        self.Kd = 0.25
-        self.dt = 0.03
+        self.Kp = 1.2
+        self.Kd = 0.35
+        self.dt = 0.02
         self.prev_error = 0.0
         self.stop_band = 2
 
@@ -99,19 +101,19 @@ class IMUPID:
         self.prev_error = error
 
         u = self.Kp * error + self.Kd * derivative
-        cap = clamp(0.8 * abs(error), 8, 35)
+        cap = clamp(1.0 * abs(error), 12, 60)
         u = math.copysign(min(abs(u), cap), u)
 
         return saturation(bot, u), current
 
 
 # -----------------------------
-# Helper Functions for Tasks
+# Helper Functions
 # -----------------------------
 def lidar_move(bot, pid, target_mm):
     while True:
         vel, dist = pid.compute(bot, target_mm)
-        print("LiDAR move | target:", target_mm, "| v:", vel, "| dist:", dist)
+        print("LiDAR | target:", target_mm, "| v:", vel, "| dist:", dist)
 
         if vel == 0:
             bot.stop_motors()
@@ -122,7 +124,7 @@ def lidar_move(bot, pid, target_mm):
         time.sleep(pid.dt)
 
     pid.reset()
-    time.sleep(1)
+    time.sleep(0.5)
 
 
 def imu_rotate(bot, pid, delta_deg):
@@ -142,7 +144,7 @@ def imu_rotate(bot, pid, delta_deg):
         time.sleep(pid.dt)
 
     pid.reset()
-    time.sleep(1)
+    time.sleep(0.5)
 
 
 # -----------------------------
@@ -173,11 +175,11 @@ if __name__ == "__main__":
     print("\nTask 4: Rotate 180° clockwise")
     imu_rotate(Bot, imu_pid, -180)
 
-    # Tasks 5–7 (Repeat)
+    # Tasks 5–7
     print("\nTask 5: Stop at 2 ft (repeat)")
     lidar_move(Bot, lidar_pid, TWO_FEET)
 
-    print("\nTask 6: Drive forward 1 ft (LiDAR)")
+    print("\nTask 6: Move to 1 ft (repeat)")
     lidar_move(Bot, lidar_pid, ONE_FOOT)
 
     print("\nTask 7: Backup to 2 ft (repeat)")
