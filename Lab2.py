@@ -170,42 +170,34 @@ def distance_to_ticks(distance_mm):
     return revolutions * TICKS_PER_REV
 
 def encoder_forward_2ft(bot):
-    target_mm = 610  # 2 feet
+    target_mm = 610
     target_ticks = distance_to_ticks(target_mm)
 
     bot.reset_encoders()
 
-    Kp = 0.008
-    Kd = 0.03
+    Kp = 0.01
     dt = 0.02
-
-    prev_error = 0
-    stop_band_ticks = distance_to_ticks(8)  # tighter stop (8mm)
+    stop_band = distance_to_ticks(8)
 
     while True:
         left = bot.get_left_encoder_reading()
         right = bot.get_right_encoder_reading()
-        avg_ticks = (left + right) / 2
+
+        avg_ticks = (abs(left) + abs(right)) / 2
 
         error = target_ticks - avg_ticks
 
-        # HARD STOP CONDITION
-        if abs(error) <= stop_band_ticks:
+        print("L:", left, "R:", right, "AVG:", avg_ticks, "ERR:", error)
+
+        if abs(error) <= stop_band:
             bot.stop_motors()
             break
 
-        derivative = (error - prev_error) / dt
-        prev_error = error
+        u = Kp * error
 
-        u = Kp * error + Kd * derivative
-
-        # Better deceleration curve
-        cap = clamp(0.004 * abs(error), 10, 60)
-        u = math.copysign(min(abs(u), cap), u)
-
-        # Kill creeping motion
-        if abs(u) < 8:
-            u = 0
+        # Proper deceleration curve
+        cap = clamp(0.01 * abs(error), 15, 60)
+        u = min(u, cap)
 
         bot.set_left_motor_speed(saturation(bot, u))
         bot.set_right_motor_speed(saturation(bot, u))
