@@ -37,9 +37,17 @@ def approach_wall(bot, distance = 0.5):
 
 def main():
     bot = HamBot(lidar_enabled=True, camera_enabled=False)
-    #approach_wall(bot)
-    scan = bot.get_range_image()
-    print("Front distance (mm):", scan)
+
+    import time
+    time.sleep(3)   # let lidar warm up
+
+    # Force clear input buffer
+    bot.lidar.lidar.clear_input()
+
+    for i in range(5):
+        scan = bot.get_range_image()
+        print(scan[:20])   # print first 20 values
+        time.sleep(1)
 
 
 if __name__ == "__main__":
