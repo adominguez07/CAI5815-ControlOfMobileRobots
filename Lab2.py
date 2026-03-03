@@ -1,7 +1,8 @@
 from HamBot.src.robot_systems.robot import HamBot
 import time
 import math
-
+WHEEL_RADIUS = 0.045  # meters
+TICKS_PER_REV = 960   # 20 CPR * 48:1 gearbox
 
 # -----------------------------
 # Utility Functions
@@ -161,6 +162,52 @@ def imu_rotate(bot, pid, delta_deg):
 
     bot.stop_motors()
     time.sleep(0.5)
+
+def distance_to_ticks(distance_mm):
+    distance_m = distance_mm / 1000.0
+    wheel_circumference = 2 * math.pi * WHEEL_RADIUS
+    revolutions = distance_m / wheel_circumference
+    return revolutions * TICKS_PER_REV
+
+def encoder_forward_2ft(bot):
+    target_mm = 610  # 2 feet
+    target_ticks = distance_to_ticks(target_mm)
+
+    bot.reset_encoders()
+
+    Kp = 0.006
+    Kd = 0.02
+    dt = 0.02
+    prev_error = 0
+    stop_band_ticks = distance_to_ticks(10)  # 10 mm tolerance
+
+    while True:
+        left = bot.get_left_encoder_reading()
+        right = bot.get_right_encoder_reading()
+        avg_ticks = (left + right) / 2
+
+        error = target_ticks - avg_ticks
+
+        if abs(error) <= stop_band_ticks:
+            bot.stop_motors()
+            break
+
+        derivative = (error - prev_error) / dt
+        prev_error = error
+
+        u = Kp * error + Kd * derivative
+
+        # Soft deceleration cap
+        cap = clamp(0.002 * abs(error), 8, 60)
+        u = math.copysign(min(abs(u), cap), u)
+
+        bot.set_left_motor_speed(saturation(bot, u))
+        bot.set_right_motor_speed(saturation(bot, u))
+
+        time.sleep(dt)
+
+    bot.stop_motors()
+    time.sleep(0.5)
 # -----------------------------
 # Main Program
 # -----------------------------
@@ -199,5 +246,8 @@ if __name__ == "__main__":
     print("\nTask 8: Rotate 180° counterclockwise")
     imu_rotate(Bot, imu_pid, 180)
 
+    print("\nTask 9: Encoder PID drive forward 2 ft")
+    encoder_forward_2ft(Bot)
+    
     Bot.stop_motors()
     print("\nAll tasks complete.")
