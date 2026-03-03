@@ -175,11 +175,12 @@ def encoder_forward_2ft(bot):
 
     bot.reset_encoders()
 
-    Kp = 0.006
-    Kd = 0.02
+    Kp = 0.008
+    Kd = 0.03
     dt = 0.02
+
     prev_error = 0
-    stop_band_ticks = distance_to_ticks(10)  # 10 mm tolerance
+    stop_band_ticks = distance_to_ticks(8)  # tighter stop (8mm)
 
     while True:
         left = bot.get_left_encoder_reading()
@@ -188,6 +189,7 @@ def encoder_forward_2ft(bot):
 
         error = target_ticks - avg_ticks
 
+        # HARD STOP CONDITION
         if abs(error) <= stop_band_ticks:
             bot.stop_motors()
             break
@@ -197,9 +199,13 @@ def encoder_forward_2ft(bot):
 
         u = Kp * error + Kd * derivative
 
-        # Soft deceleration cap
-        cap = clamp(0.002 * abs(error), 8, 60)
+        # Better deceleration curve
+        cap = clamp(0.004 * abs(error), 10, 60)
         u = math.copysign(min(abs(u), cap), u)
+
+        # Kill creeping motion
+        if abs(u) < 8:
+            u = 0
 
         bot.set_left_motor_speed(saturation(bot, u))
         bot.set_right_motor_speed(saturation(bot, u))
@@ -208,6 +214,7 @@ def encoder_forward_2ft(bot):
 
     bot.stop_motors()
     time.sleep(0.5)
+    
 # -----------------------------
 # Main Program
 # -----------------------------
