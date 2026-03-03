@@ -211,28 +211,28 @@ if __name__ == "__main__":
     ONE_FOOT = 305
 
     print("\nTask 1: Stop at 2 ft")
-    #lidar_move(Bot, lidar_pid, TWO_FEET)
+    lidar_move(Bot, lidar_pid, TWO_FEET)
 
     print("\nTask 2: Move to 1 ft")
-    #lidar_move(Bot, lidar_pid, ONE_FOOT)
+    lidar_move(Bot, lidar_pid, ONE_FOOT)
 
     print("\nTask 3: Backup to 2 ft")
-    #lidar_move(Bot, lidar_pid, TWO_FEET)
+    lidar_move(Bot, lidar_pid, TWO_FEET)
 
     print("\nTask 4: Rotate 180° clockwise")
-    #imu_rotate(Bot, imu_pid, -180)
+    imu_rotate(Bot, imu_pid, -180)
 
     print("\nTask 5: Stop at 2 ft (repeat)")
-    #lidar_move(Bot, lidar_pid, TWO_FEET)
+    lidar_move(Bot, lidar_pid, TWO_FEET)
 
     print("\nTask 6: Move to 1 ft (repeat)")
-    #lidar_move(Bot, lidar_pid, ONE_FOOT)
+    lidar_move(Bot, lidar_pid, ONE_FOOT)
 
     print("\nTask 7: Backup to 2 ft (repeat)")
-    #lidar_move(Bot, lidar_pid, TWO_FEET)
+    lidar_move(Bot, lidar_pid, TWO_FEET)
 
     print("\nTask 8: Rotate 180° counterclockwise")
-    #imu_rotate(Bot, imu_pid, 180)
+    imu_rotate(Bot, imu_pid, 180)
 
     print("\nTask 9: Encoder PID drive forward 2 ft")
     encoder_forward_2ft(Bot)
