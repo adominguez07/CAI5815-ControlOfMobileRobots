@@ -39,7 +39,7 @@ def main():
     bot = HamBot(lidar_enabled=True, camera_enabled=False)
     #approach_wall(bot)
     scan = bot.get_range_image()
-    print("Front distance (mm):", scan[180])
+    print("Front distance (mm):", scan)
 
 
 if __name__ == "__main__":
