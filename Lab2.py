@@ -125,46 +125,33 @@ def lidar_move(bot, pid, target_mm):
     time.sleep(0.5)
 
 
-def imu_rotateCW(bot, pid, delta_deg):
+def imu_rotate(bot, pid, delta_deg):
     start = get_heading(bot)
     target = (start + delta_deg) % 360
 
     while True:
-        turn, heading = pid.compute(bot, target)
-        print("Rotate | target:", target, "| heading:", heading, "| turn:", turn)
+        current = get_heading(bot)
+        error = angle_error(target, current)
 
-        if turn == 0:
+        print("Rotate | target:", target, "| heading:", current, "| error:", error)
+
+        if abs(error) <= pid.stop_band:
             bot.stop_motors()
             break
 
-        # Counterclockwise rotation
+        turn = pid.Kp * error
+
+        # cap speed
+        turn = clamp(turn, -60, 60)
+
+        # apply differential drive
         bot.set_left_motor_speed(-turn)
         bot.set_right_motor_speed(turn)
+
         time.sleep(pid.dt)
 
     pid.reset()
     time.sleep(0.5)
-
-def imu_rotateCCW(bot, pid, delta_deg):
-    start = get_heading(bot)
-    target = (start + delta_deg) % 360
-
-    while True:
-        turn, heading = pid.compute(bot, target)
-        print("Rotate | target:", target, "| heading:", heading, "| turn:", turn)
-
-        if turn == 0:
-            bot.stop_motors()
-            break
-
-        # Counterclockwise rotation
-        bot.set_left_motor_speed(turn)
-        bot.set_right_motor_speed(-turn)
-        time.sleep(pid.dt)
-
-    pid.reset()
-    time.sleep(0.5)
-
 
 # -----------------------------
 # Main Program
@@ -190,7 +177,7 @@ if __name__ == "__main__":
     lidar_move(Bot, lidar_pid, TWO_FEET)
 
     print("\nTask 4: Rotate 180° clockwise")
-    imu_rotateCW(Bot, imu_pid, -180)
+    imu_rotate(Bot, imu_pid, -180)
 
     print("\nTask 5: Stop at 2 ft (repeat)")
     lidar_move(Bot, lidar_pid, TWO_FEET)
@@ -202,7 +189,7 @@ if __name__ == "__main__":
     lidar_move(Bot, lidar_pid, TWO_FEET)
 
     print("\nTask 8: Rotate 180° counterclockwise")
-    imu_rotateCCW(Bot, imu_pid, 180)
+    imu_rotate(Bot, imu_pid, 180)
 
     Bot.stop_motors()
     print("\nAll tasks complete.")
