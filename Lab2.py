@@ -1,5 +1,6 @@
 from HamBot.src.robot_systems.robot import HamBot
-import time, math
+import time
+import math
 
 
 def saturation(bot, rpm):
@@ -99,14 +100,18 @@ if __name__ == "__main__":
     target_ticks = distance_to_ticks(300)
 
     while True:
-        left_ticks = Bot.get_left_encoder_ticks()
-        error = target_ticks - left_ticks
+        left = Bot.get_left_encoder_reading()
+        right = Bot.get_right_encoder_reading()
+        avg_ticks = (left + right) / 2
+
+        error = target_ticks - avg_ticks
 
         if abs(ticks_to_distance(error)) <= controller.StopBand:
             Bot.stop_motors()
             break
 
-        Kp_enc = 0.003  # scaled down because ticks are large now
+        # Scaled proportional gain for encoder control
+        Kp_enc = 0.003
         u_enc = saturation(Bot, Kp_enc * error)
 
         Bot.set_left_motor_speed(u_enc)
