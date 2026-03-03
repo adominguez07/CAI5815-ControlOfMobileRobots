@@ -3,7 +3,7 @@ import time
 
 PORT = "/dev/ttyUSB0"
 
-lidar = RPLidar(None, PORT)
+lidar = RPLidar(None, PORT, baudrate=256000)
 
 try:
     print("Starting motor...")
