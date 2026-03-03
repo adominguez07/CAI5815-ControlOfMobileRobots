@@ -131,24 +131,29 @@ def imu_rotate(bot, pid, delta_deg):
 
     pid.reset()
 
+    # Determine desired rotation direction
+    direction = 1 if delta_deg > 0 else -1
+
     while True:
         current = get_heading(bot)
-        error = (target - current + 180) % 360 - 180  # shortest angle error
+        error = (target - current + 180) % 360 - 180
 
         if abs(error) <= pid.stop_band:
             bot.stop_motors()
             break
 
-        # Proper PID step
         derivative = (error - pid.prev_error) / pid.dt
         pid.prev_error = error
 
         turn = pid.Kp * error + pid.Kd * derivative
 
-        # Soft speed cap near target (prevents overshoot)
-        cap = clamp(0.8 * abs(error), 8, 40)
-        turn = math.copysign(min(abs(turn), cap), turn)
+        # Force rotation direction
+        turn = direction * abs(turn)
 
+        cap = clamp(0.8 * abs(error), 8, 40)
+        turn = direction * min(abs(turn), cap)
+
+        # Apply motor command
         bot.set_left_motor_speed(-turn)
         bot.set_right_motor_speed(turn)
 
@@ -156,10 +161,6 @@ def imu_rotate(bot, pid, delta_deg):
 
     bot.stop_motors()
     time.sleep(0.5)
-
-    pid.reset()
-    time.sleep(0.5)
-
 # -----------------------------
 # Main Program
 # -----------------------------
