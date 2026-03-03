@@ -129,26 +129,33 @@ def imu_rotate(bot, pid, delta_deg):
     start = get_heading(bot)
     target = (start + delta_deg) % 360
 
+    pid.reset()
+
     while True:
         current = get_heading(bot)
-        error = angle_error(target, current)
-
-        print("Rotate | target:", target, "| heading:", current, "| error:", error)
+        error = (target - current + 180) % 360 - 180  # shortest angle error
 
         if abs(error) <= pid.stop_band:
             bot.stop_motors()
             break
 
-        turn = pid.Kp * error
+        # Proper PID step
+        derivative = (error - pid.prev_error) / pid.dt
+        pid.prev_error = error
 
-        # cap speed
-        turn = clamp(turn, -60, 60)
+        turn = pid.Kp * error + pid.Kd * derivative
 
-        # apply differential drive
+        # Soft speed cap near target (prevents overshoot)
+        cap = clamp(0.8 * abs(error), 8, 40)
+        turn = math.copysign(min(abs(turn), cap), turn)
+
         bot.set_left_motor_speed(-turn)
         bot.set_right_motor_speed(turn)
 
         time.sleep(pid.dt)
+
+    bot.stop_motors()
+    time.sleep(0.5)
 
     pid.reset()
     time.sleep(0.5)
