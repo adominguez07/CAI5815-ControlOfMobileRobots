@@ -167,7 +167,7 @@ def distance_to_ticks(distance_mm):
     distance_m = distance_mm / 1000.0
     wheel_circumference = 2 * math.pi * WHEEL_RADIUS
     revolutions = distance_m / wheel_circumference
-    return revolutions * TICKS_PER_REV
+    return revolutions * 7.5
 
 def encoder_forward_2ft(bot):
     target_mm = 610
