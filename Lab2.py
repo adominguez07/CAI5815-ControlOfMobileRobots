@@ -50,7 +50,7 @@ class LidarPID:
         self.Kd = 1.2
         self.dt = 0.02
         self.prev_error = 0.0
-        self.stop_band = 12  # tighter stop
+        self.stop_band = 12
 
     def reset(self):
         self.prev_error = 0.0
@@ -67,8 +67,6 @@ class LidarPID:
         self.prev_error = error
 
         u = self.Kp * error + self.Kd * derivative
-
-        # Faster speed ramp
         cap = clamp(0.15 * abs(error), 10, 60)
         u = math.copysign(min(abs(u), cap), u)
 
@@ -76,7 +74,7 @@ class LidarPID:
 
 
 # -----------------------------
-# IMU PID Controller (faster)
+# FAST IMU PID Controller
 # -----------------------------
 class IMUPID:
     def __init__(self):
@@ -139,6 +137,7 @@ def imu_rotate(bot, pid, delta_deg):
             bot.stop_motors()
             break
 
+        # Counterclockwise rotation
         bot.set_left_motor_speed(-turn)
         bot.set_right_motor_speed(turn)
         time.sleep(pid.dt)
@@ -161,7 +160,6 @@ if __name__ == "__main__":
     TWO_FEET = 610
     ONE_FOOT = 305
 
-    # Tasks 1–3
     print("\nTask 1: Stop at 2 ft")
     lidar_move(Bot, lidar_pid, TWO_FEET)
 
@@ -171,11 +169,9 @@ if __name__ == "__main__":
     print("\nTask 3: Backup to 2 ft")
     lidar_move(Bot, lidar_pid, TWO_FEET)
 
-    # Task 4
     print("\nTask 4: Rotate 180° clockwise")
     imu_rotate(Bot, imu_pid, -180)
 
-    # Tasks 5–7
     print("\nTask 5: Stop at 2 ft (repeat)")
     lidar_move(Bot, lidar_pid, TWO_FEET)
 
@@ -185,13 +181,8 @@ if __name__ == "__main__":
     print("\nTask 7: Backup to 2 ft (repeat)")
     lidar_move(Bot, lidar_pid, TWO_FEET)
 
-    # Task 8
     print("\nTask 8: Rotate 180° counterclockwise")
     imu_rotate(Bot, imu_pid, 180)
-
-    # Task 9
-    print("\nTask 9: Final forward drive (2 ft)")
-    lidar_move(Bot, lidar_pid, ONE_FOOT)
 
     Bot.stop_motors()
     print("\nAll tasks complete.")
