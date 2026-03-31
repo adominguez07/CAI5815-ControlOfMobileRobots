@@ -422,7 +422,6 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
         state = 'MOTION_TO_GOAL'
         ctrl  = None
     else:
-        wall_side = find_nearest_wall_side(bot, wall_side)
         print("No goal found, wall following on:", wall_side, "side")
         state = 'WALL_FOLLOWING'
         ctrl  = WallFollower(bot, wall_side=wall_side)
@@ -465,7 +464,6 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                     reset_pid(speed_pid)
                     l_slew.prev = 0.0
                     r_slew.prev = 0.0
-                    wall_side = find_nearest_wall_side(bot, wall_side)
                     ctrl  = WallFollower(bot, wall_side=wall_side)
                     state = 'WALL_FOLLOWING'
                     continue
