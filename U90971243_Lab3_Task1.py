@@ -305,6 +305,47 @@ class WallFollower:
 
 
 # ============================================================
+# 360-degree landmark scan (stops early if goal found)
+# ============================================================
+SCAN_RPM = 9.0   # slower spin speed so the camera has time to detect
+
+def rotate_360_scan(bot):
+    """Rotate a full 360 degrees, stopping early if the yellow landmark is spotted.
+    Returns True if the goal was found (robot left pointing at it), False otherwise."""
+    total_rotated = 0.0
+    last_heading  = bot.get_heading()
+
+    # Check before moving in case goal is already visible
+    if len(bot.camera.find_landmarks()) > 0:
+        return True
+
+    while total_rotated < 360.0:
+        cur   = bot.get_heading()
+        delta = (cur - last_heading + 180) % 360 - 180
+        total_rotated += abs(delta)
+        last_heading   = cur
+
+        remaining = 360.0 - total_rotated
+        if remaining <= 2.0:
+            break
+
+        scale = max(ROTATE_MIN_RPM / SCAN_RPM, min(1.0, remaining / 360.0))
+        rpm   = SCAN_RPM * scale
+        bot.set_left_motor_speed(-rpm)    # rotate left
+        bot.set_right_motor_speed(rpm)
+        time.sleep(DT)
+
+        if len(bot.camera.find_landmarks()) > 0:
+            bot.set_left_motor_speed(0.0)
+            bot.set_right_motor_speed(0.0)
+            return True
+
+    bot.set_left_motor_speed(0.0)
+    bot.set_right_motor_speed(0.0)
+    return False
+
+
+# ============================================================
 # IMU-guided 90-degree rotate (tapered)
 # ============================================================
 def rotate_90(bot, wall_side):
@@ -386,12 +427,14 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
 
                 if f < FRONT_STOP_MM:
                     bot.stop_motors()
-                    if len(bot.camera.find_landmarks()) > 0:
-                        print("Goal visible after stop, switching to MOTION_TO_GOAL")
+                    print("Corner reached, scanning 360 for goal")
+                    if rotate_360_scan(bot):
+                        print("Goal found during scan, switching to MOTION_TO_GOAL")
                         ctrl  = None
                         state = 'MOTION_TO_GOAL'
                     else:
                         rotate_90(bot, wall_side)
+                        ctrl = WallFollower(bot, wall_side=wall_side)
 
             time.sleep(DT)
 
