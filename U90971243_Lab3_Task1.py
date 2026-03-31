@@ -502,18 +502,11 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                     bot.set_right_motor_speed(r_slew.step(right_spd))
 
                 else:
-                    # Goal lost — scan to reacquire
-                    bot.stop_motors()
+                    # Goal out of frame — drive straight until hitting a wall
                     reset_pid(center_pid)
-                    reset_pid(speed_pid)
-                    l_slew.prev = 0.0
-                    r_slew.prev = 0.0
-                    print("Goal lost, scanning to reacquire")
-                    if not rotate_360_scan(bot):
-                        print("Goal not found, switching to WALL_FOLLOWING")
-                        wall_side = find_nearest_wall_side(bot, wall_side)
-                        ctrl  = WallFollower(bot, wall_side=wall_side)
-                        state = 'WALL_FOLLOWING'
+                    base = clamp(KP_SPEED * (f - GOAL_DISTANCE_MM), MIN_APPROACH_RPM, MAX_SPEED)
+                    bot.set_left_motor_speed(l_slew.step(base))
+                    bot.set_right_motor_speed(r_slew.step(base))
 
             # ── WALL FOLLOWING ────────────────────────────────────────────
             elif state == 'WALL_FOLLOWING':
