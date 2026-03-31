@@ -434,6 +434,14 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                         state = 'MOTION_TO_GOAL'
                     else:
                         rotate_90(bot, wall_side)
+                        # Drive forward to physically clear the corner so the
+                        # next loop iteration does not immediately re-trigger
+                        t0 = time.time()
+                        while time.time() - t0 < 0.8 and front_mm(bot) > FRONT_STOP_MM:
+                            bot.set_left_motor_speed(BASE_SPEED)
+                            bot.set_right_motor_speed(BASE_SPEED)
+                            time.sleep(DT)
+                        bot.stop_motors()
                         ctrl = WallFollower(bot, wall_side=wall_side)
 
             time.sleep(DT)
