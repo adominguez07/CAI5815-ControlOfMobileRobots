@@ -5,12 +5,14 @@ import time, math
 # Bug Zero parameters
 # ============================================================
 WALL_FOLLOW_SIDE = 'right'      # 'left' for Run 1, 'right' for Run 2
-GOAL_DISTANCE_MM = 250
-CAMERA_WIDTH     = 640
-CAMERA_CENTER_X  = CAMERA_WIDTH // 2
-BASE_SPEED       = 20           # RPM for motion-to-goal straight driving
-MAX_SPEED        = 35           # motor cap for motion-to-goal
-KP_GOAL          = 0.06         # camera centering proportional gain
+GOAL_DISTANCE_MM   = 250
+ENCODER_COMMIT_MM  = 1000       # front distance at which we lock in encoder drive to goal
+WHEEL_RADIUS_MM    = 45.0       # wheel radius for encoder odometry
+CAMERA_WIDTH       = 640
+CAMERA_CENTER_X    = CAMERA_WIDTH // 2
+BASE_SPEED         = 20         # RPM for motion-to-goal straight driving
+MAX_SPEED          = 35         # motor cap for motion-to-goal
+KP_GOAL            = 0.06       # camera centering proportional gain
 
 # ============================================================
 # Wall follower timing and targets
@@ -328,6 +330,30 @@ def rotate_90(bot, wall_side):
 
 
 # ============================================================
+# Encoder-based final approach
+# ============================================================
+def drive_to_goal_by_encoder(bot, distance_mm):
+    """Drive straight for distance_mm using encoder odometry, stopping early if
+    the front LIDAR confirms we are already within GOAL_DISTANCE_MM."""
+    if distance_mm <= 0:
+        return
+    target_rad = distance_mm / WHEEL_RADIUS_MM
+    bot.reset_encoders()
+    time.sleep(0.05)
+    while True:
+        left_rad, right_rad = bot.get_encoder_readings()
+        traveled = (abs(left_rad) + abs(right_rad)) / 2.0
+        if traveled >= target_rad:
+            break
+        if front_mm(bot) <= GOAL_DISTANCE_MM:
+            break
+        bot.set_left_motor_speed(BASE_SPEED)
+        bot.set_right_motor_speed(BASE_SPEED)
+        time.sleep(0.03)
+    bot.stop_motors()
+
+
+# ============================================================
 # Bug Zero state machine
 # ============================================================
 def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
@@ -359,8 +385,19 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                     continue
 
                 if landmarks:
-                    lm        = max(landmarks, key=lambda l: l.width * l.height)
-                    error_x   = lm.x - CAMERA_CENTER_X
+                    lm      = max(landmarks, key=lambda l: l.width * l.height)
+                    error_x = lm.x - CAMERA_CENTER_X
+
+                    if f < ENCODER_COMMIT_MM:
+                        # Close enough and pillar is visible — commit to encoder drive
+                        # so the robot doesn't overshoot if the camera loses the pillar
+                        bot.stop_motors()
+                        drive_dist = max(0, f - GOAL_DISTANCE_MM)
+                        print("Committing to encoder drive:", round(drive_dist), "mm")
+                        drive_to_goal_by_encoder(bot, drive_dist)
+                        print("Goal reached, stopping.")
+                        break
+
                     turn      = KP_GOAL * error_x
                     left_spd  = clamp(BASE_SPEED + turn, -MAX_SPEED, MAX_SPEED)
                     right_spd = clamp(BASE_SPEED - turn, -MAX_SPEED, MAX_SPEED)
