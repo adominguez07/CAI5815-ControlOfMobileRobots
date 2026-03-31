@@ -6,8 +6,8 @@ WALL_FOLLOW_SIDE      = 'right'  # 'left' for Run 1, 'right' for Run 2
 OBSTACLE_THRESHOLD_MM = 300      # front distance that triggers wall-follow state
 GOAL_DISTANCE_MM      = 250      # stop when this close to goal
 DESIRED_WALL_MM       = 220      # target side-wall distance during wall-follow
-BASE_SPEED            = 40       # nominal forward RPM
-MAX_SPEED             = 70       # hard cap on any motor command
+BASE_SPEED            = 20       # nominal forward RPM
+MAX_SPEED             = 35       # hard cap on any motor command
 CAMERA_WIDTH          = 640      # horizontal resolution (pixels)
 CAMERA_CENTER_X       = CAMERA_WIDTH // 2
 
