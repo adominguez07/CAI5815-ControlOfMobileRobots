@@ -13,6 +13,7 @@ MAX_SPEED        = 35           # motor cap for motion-to-goal
 KP_GOAL          = 0.06         # camera centering proportional gain
 KD_GOAL          = 0.03         # camera centering derivative gain (damps overshoot)
 GOAL_DEAD_ZONE   = 60           # pixel dead zone half-width — no correction within this band
+GOAL_TURN_CAP    = 8.0          # max RPM differential allowed during goal approach
 
 # ============================================================
 # Wall follower timing and targets
@@ -436,24 +437,33 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                     error_x = lm.x - CAMERA_CENTER_X
 
                     if abs(error_x) <= GOAL_DEAD_ZONE:
-                        # Landmark is close enough to center — drive straight
                         turn         = 0.0
                         prev_error_x = 0.0
                     else:
-                        # Outside dead zone — apply PD correction
                         d_error_x    = error_x - prev_error_x
                         turn         = KP_GOAL * error_x + KD_GOAL * d_error_x
+                        turn         = clamp(turn, -GOAL_TURN_CAP, GOAL_TURN_CAP)
                         prev_error_x = error_x
 
                     left_spd  = clamp(BASE_SPEED + turn, -MAX_SPEED, MAX_SPEED)
                     right_spd = clamp(BASE_SPEED - turn, -MAX_SPEED, MAX_SPEED)
+                    bot.set_left_motor_speed(l_goal_slew.step(left_spd))
+                    bot.set_right_motor_speed(r_goal_slew.step(right_spd))
                 else:
+                    # Goal lost — stop and scan to reacquire
+                    bot.stop_motors()
                     prev_error_x = 0.0
-                    left_spd     = BASE_SPEED
-                    right_spd    = BASE_SPEED
-
-                bot.set_left_motor_speed(l_goal_slew.step(left_spd))
-                bot.set_right_motor_speed(r_goal_slew.step(right_spd))
+                    print("Goal lost, scanning to reacquire")
+                    if rotate_360_scan(bot):
+                        print("Goal reacquired, waiting before approach")
+                        time.sleep(3.0)
+                        l_goal_slew.prev = 0.0
+                        r_goal_slew.prev = 0.0
+                    else:
+                        # Could not find goal, return to wall following
+                        print("Goal not found, returning to WALL_FOLLOWING")
+                        ctrl  = WallFollower(bot, wall_side=wall_side)
+                        state = 'WALL_FOLLOWING'
 
             elif state == 'WALL_FOLLOWING':
                 if landmarks:
