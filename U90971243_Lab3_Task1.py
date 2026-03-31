@@ -21,7 +21,7 @@ CENTER_WINDUP     = 300.0       # integral windup cap (pixels)
 # Speed PID (speeds up when far, slows down when close to goal)
 KP_SPEED          = 0.04        # at 1000mm away → ~30 RPM
 KD_SPEED          = 0.005
-MIN_APPROACH_RPM  = 6.0         # floor so robot always creeps forward
+MIN_APPROACH_RPM  = 0.0         # allow speed to reach zero at goal
 
 # ============================================================
 # Wall follower timing and targets
@@ -447,8 +447,10 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                 cv2.imshow('HamBot Camera', display)
                 cv2.waitKey(1)
 
-            # Stop when goal is close enough
-            if landmarks and f < GOAL_DISTANCE_MM:
+            # Stop when goal is close enough (wider window catches slightly off-axis pillar)
+            scan_now  = bot.get_range_image()
+            f_wide    = robust_min(scan_now[160:201], keep=5)
+            if landmarks and f_wide < GOAL_DISTANCE_MM:
                 print("Goal reached, stopping.")
                 bot.stop_motors()
                 break
@@ -491,7 +493,7 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                     spd_err = f - GOAL_DISTANCE_MM
                     d_spd   = (spd_err - speed_pid['prev_err']) / DT
                     base    = KP_SPEED * spd_err + KD_SPEED * d_spd
-                    base    = clamp(base, MIN_APPROACH_RPM, MAX_SPEED)
+                    base    = clamp(base, 0, MAX_SPEED)
                     speed_pid['prev_err'] = spd_err
 
                     left_spd  = clamp(base + turn, -MAX_SPEED, MAX_SPEED)
@@ -502,7 +504,7 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                 else:
                     # Goal out of frame — drive straight until hitting a wall
                     reset_pid(center_pid)
-                    base = clamp(KP_SPEED * (f - GOAL_DISTANCE_MM), MIN_APPROACH_RPM, MAX_SPEED)
+                    base = clamp(KP_SPEED * (f - GOAL_DISTANCE_MM), 0, MAX_SPEED)
                     bot.set_left_motor_speed(l_slew.step(base))
                     bot.set_right_motor_speed(r_slew.step(base))
 
