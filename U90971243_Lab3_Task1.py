@@ -12,6 +12,7 @@ BASE_SPEED       = 20           # RPM for motion-to-goal straight driving
 MAX_SPEED        = 35           # motor cap for motion-to-goal
 KP_GOAL          = 0.06         # camera centering proportional gain
 KD_GOAL          = 0.03         # camera centering derivative gain (damps overshoot)
+GOAL_DEAD_ZONE   = 60           # pixel dead zone half-width — no correction within this band
 
 # ============================================================
 # Wall follower timing and targets
@@ -431,11 +432,19 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                     continue
 
                 if landmarks:
-                    lm        = max(landmarks, key=lambda l: l.width * l.height)
-                    error_x   = lm.x - CAMERA_CENTER_X
-                    d_error_x = error_x - prev_error_x
-                    turn      = KP_GOAL * error_x + KD_GOAL * d_error_x
-                    prev_error_x = error_x
+                    lm      = max(landmarks, key=lambda l: l.width * l.height)
+                    error_x = lm.x - CAMERA_CENTER_X
+
+                    if abs(error_x) <= GOAL_DEAD_ZONE:
+                        # Landmark is close enough to center — drive straight
+                        turn         = 0.0
+                        prev_error_x = 0.0
+                    else:
+                        # Outside dead zone — apply PD correction
+                        d_error_x    = error_x - prev_error_x
+                        turn         = KP_GOAL * error_x + KD_GOAL * d_error_x
+                        prev_error_x = error_x
+
                     left_spd  = clamp(BASE_SPEED + turn, -MAX_SPEED, MAX_SPEED)
                     right_spd = clamp(BASE_SPEED - turn, -MAX_SPEED, MAX_SPEED)
                 else:
