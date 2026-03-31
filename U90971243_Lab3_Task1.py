@@ -45,7 +45,7 @@ def get_side_mm(scan, side):
 
 def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
     bot = HamBot(lidar_enabled=True, camera_enabled=True)
-    bot.camera.set_target_colors([(255, 255, 0)], tolerance=0.08)
+    bot.camera.set_target_colors([(234, 213, 45)], tolerance=0.08)
     time.sleep(0.5)  # let camera warm up
 
     state = 'MOTION_TO_GOAL'
