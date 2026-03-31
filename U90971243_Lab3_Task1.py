@@ -369,6 +369,31 @@ def rotate_90(bot, wall_side):
 
 
 # ============================================================
+# Nearest wall detection for startup
+# ============================================================
+WALL_DETECT_MM = 600   # side distance within which we consider a wall present
+
+def find_nearest_wall_side(bot, default_side):
+    """Check left and right LIDAR windows. Return whichever side has a wall
+    closer than WALL_DETECT_MM, preferring the closer one. Falls back to
+    default_side if no wall is detected on either side."""
+    scan       = bot.get_range_image()
+    left_dist  = robust_min(scan[85:95],   keep=5)
+    right_dist = robust_min(scan[265:275], keep=5)
+
+    left_near  = left_dist  < WALL_DETECT_MM
+    right_near = right_dist < WALL_DETECT_MM
+
+    if left_near and right_near:
+        return 'left' if left_dist <= right_dist else 'right'
+    if left_near:
+        return 'left'
+    if right_near:
+        return 'right'
+    return default_side
+
+
+# ============================================================
 # Bug Zero state machine
 # ============================================================
 def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
@@ -376,8 +401,10 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
     bot.camera.set_target_colors([(234, 213, 45)], tolerance=0.08)
     time.sleep(0.5)
 
-    state = 'MOTION_TO_GOAL'
-    ctrl  = None
+    wall_side   = find_nearest_wall_side(bot, wall_side)
+    print("Starting wall follow on:", wall_side, "side")
+    state = 'WALL_FOLLOWING'
+    ctrl  = WallFollower(bot, wall_side=wall_side)
     l_goal_slew = Slew(SLEW_RPM_PER_TICK)
     r_goal_slew = Slew(SLEW_RPM_PER_TICK)
 
