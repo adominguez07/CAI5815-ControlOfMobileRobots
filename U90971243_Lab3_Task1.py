@@ -4,7 +4,7 @@ import time, math, cv2
 # ============================================================
 # Bug Zero parameters
 # ============================================================
-WALL_FOLLOW_SIDE  = 'left'      # 'left' for Run 1, 'right' for Run 2
+WALL_FOLLOW_SIDE  = 'right'      # 'left' for Run 1, 'right' for Run 2
 GOAL_DISTANCE_MM  = 250         # stop within this distance of the goal
 MAX_SPEED         = 35          # absolute motor RPM cap during goal approach
 CAMERA_WIDTH      = 640
