@@ -448,14 +448,14 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
 
             elif state == 'WALL_FOLLOWING':
                 if landmarks:
-                    print("Goal visible, switching to MOTION_TO_GOAL")
+                    print("Goal visible, waiting before approach")
                     bot.stop_motors()
+                    time.sleep(3.0)
                     ctrl         = None
                     state        = 'MOTION_TO_GOAL'
                     l_goal_slew.prev = 0.0
                     r_goal_slew.prev = 0.0
                     prev_error_x = 0.0
-                    time.sleep(0.1)
                     continue
 
                 l_rpm, r_rpm = ctrl.step()
@@ -466,8 +466,10 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                     bot.stop_motors()
                     print("Corner reached, scanning 360 for goal")
                     if rotate_360_scan(bot):
-                        print("Goal found during scan, switching to MOTION_TO_GOAL")
-                        ctrl  = None
+                        print("Goal found during scan, waiting before approach")
+                        bot.stop_motors()
+                        time.sleep(3.0)
+                        ctrl         = None
                         state        = 'MOTION_TO_GOAL'
                         l_goal_slew.prev = 0.0
                         r_goal_slew.prev = 0.0
