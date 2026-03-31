@@ -1,20 +1,27 @@
 from robot_systems.robot import HamBot
-import time, math
-import cv2
+import time, math, cv2
 
 # ============================================================
 # Bug Zero parameters
 # ============================================================
-WALL_FOLLOW_SIDE = 'left'      # 'left' for Run 1, 'right' for Run 2
-GOAL_DISTANCE_MM = 250
-CAMERA_WIDTH     = 640
-CAMERA_CENTER_X  = CAMERA_WIDTH // 2
-BASE_SPEED       = 20           # RPM for motion-to-goal straight driving
-MAX_SPEED        = 35           # motor cap for motion-to-goal
-KP_GOAL          = 0.06         # camera centering proportional gain
-KD_GOAL          = 0.03         # camera centering derivative gain (damps overshoot)
-GOAL_DEAD_ZONE   = 60           # pixel dead zone half-width — no correction within this band
-GOAL_TURN_CAP    = 8.0          # max RPM differential allowed during goal approach
+WALL_FOLLOW_SIDE  = 'left'      # 'left' for Run 1, 'right' for Run 2
+GOAL_DISTANCE_MM  = 250         # stop within this distance of the goal
+MAX_SPEED         = 35          # absolute motor RPM cap during goal approach
+CAMERA_WIDTH      = 640
+CAMERA_CENTER_X   = CAMERA_WIDTH // 2
+
+# Centering PID (keeps goal centered in camera frame)
+KP_CENTER         = 0.05
+KI_CENTER         = 0.001
+KD_CENTER         = 0.02
+CENTER_DEAD_ZONE  = 60          # pixel half-width — no correction within this band
+CENTER_TURN_CAP   = 8.0         # max RPM differential from centering
+CENTER_WINDUP     = 300.0       # integral windup cap (pixels)
+
+# Speed PID (speeds up when far, slows down when close to goal)
+KP_SPEED          = 0.04        # at 1000mm away → ~30 RPM
+KD_SPEED          = 0.005
+MIN_APPROACH_RPM  = 6.0         # floor so robot always creeps forward
 
 # ============================================================
 # Wall follower timing and targets
@@ -22,7 +29,7 @@ GOAL_TURN_CAP    = 8.0          # max RPM differential allowed during goal appro
 DT              = 0.032
 SIDE_TARGET_MM  = 220.0
 FRONT_TARGET_MM = 250.0
-TRACK_MM        = 120.0         # distance between wheel contact points (mm)
+TRACK_MM        = 120.0
 
 # ============================================================
 # Wall follower speeds
@@ -71,6 +78,9 @@ WRAP_DS_EXIT       = -10.0
 WRAP_COOLDOWN_S    = 0.20
 WRAP_R_TARGET_MM   = 170.0
 WRAP_PD_SCALE      = 0.28
+
+WALL_DETECT_MM     = 600.0
+SCAN_RPM           = 9.0
 
 
 # ============================================================
@@ -129,19 +139,19 @@ def diag_mm(bot, side):
 # ============================================================
 class WallFollower:
     def __init__(self, bot, wall_side='left'):
-        self.bot       = bot
-        self.side      = wall_side
-        self.side_ema  = None
-        self.prev_side = None
-        self.prev_err  = 0.0
-        self.mode      = 'follow'
+        self.bot            = bot
+        self.side           = wall_side
+        self.side_ema       = None
+        self.prev_side      = None
+        self.prev_err       = 0.0
+        self.mode           = 'follow'
         self.t0_wrap        = None
         self.last_wrap_exit = None
         self.t0_rotate      = None
         self.lost_since     = None
-        self.turn_hold = 0.0
-        self.l_slew = Slew(SLEW_RPM_PER_TICK)
-        self.r_slew = Slew(SLEW_RPM_PER_TICK)
+        self.turn_hold      = 0.0
+        self.l_slew         = Slew(SLEW_RPM_PER_TICK)
+        self.r_slew         = Slew(SLEW_RPM_PER_TICK)
 
     def _front_speed(self, f_mm):
         if f_mm <= FRONT_STOP_MM:
@@ -187,9 +197,9 @@ class WallFollower:
         return turn
 
     def step(self):
-        f     = front_mm(self.bot)
-        s_raw = side_mm(self.bot, self.side)
-        d     = diag_mm(self.bot, self.side)
+        f         = front_mm(self.bot)
+        s_raw     = side_mm(self.bot, self.side)
+        d         = diag_mm(self.bot, self.side)
         sign      = +1 if self.side == 'left' else -1
         side_seen = s_raw < NO_WALL_MM
 
@@ -212,18 +222,17 @@ class WallFollower:
             if self.lost_since is None:
                 self.lost_since = now
 
-        # Mode transitions
         if self.mode == 'follow':
             if f < FRONT_STOP_MM:
-                self.mode = 'rotate'
+                self.mode      = 'rotate'
                 self.t0_rotate = now
             else:
                 open_far  = (s != float('inf')) and ((s - SIDE_TARGET_MM) > WRAP_OPEN_MM)
                 open_fast = ds > WRAP_DS_TRIG
                 cool_ok   = (self.last_wrap_exit is None) or ((now - self.last_wrap_exit) > WRAP_COOLDOWN_S)
                 if cool_ok and (open_far or open_fast) and f > FRONT_STOP_MM:
-                    self.mode     = 'wrap'
-                    self.t0_wrap  = now
+                    self.mode      = 'wrap'
+                    self.t0_wrap   = now
                     self.turn_hold = self._wrap_ff_turn(s, ds, sign)
 
         elif self.mode == 'rotate':
@@ -258,7 +267,6 @@ class WallFollower:
                 new_ff         = self._wrap_ff_turn(s, ds, sign)
                 self.turn_hold = (1.0 - WRAP_TURN_ALPHA) * self.turn_hold + WRAP_TURN_ALPHA * new_ff
 
-        # Command compute
         if self.mode == 'rotate':
             l_cmd, r_cmd = self._rotate_pair()
             l_cmd *= 0.95
@@ -309,17 +317,12 @@ class WallFollower:
 
 
 # ============================================================
-# 360-degree landmark scan (stops early if goal found)
+# 360-degree scan — stops early and returns True if goal found
 # ============================================================
-SCAN_RPM = 9.0   # slower spin speed so the camera has time to detect
-
 def rotate_360_scan(bot):
-    """Rotate a full 360 degrees, stopping early if the yellow landmark is spotted.
-    Returns True if the goal was found (robot left pointing at it), False otherwise."""
     total_rotated = 0.0
     last_heading  = bot.get_heading()
 
-    # Check before moving in case goal is already visible
     if len(bot.camera.find_landmarks()) > 0:
         return True
 
@@ -335,7 +338,7 @@ def rotate_360_scan(bot):
 
         scale = max(ROTATE_MIN_RPM / SCAN_RPM, min(1.0, remaining / 360.0))
         rpm   = SCAN_RPM * scale
-        bot.set_left_motor_speed(-rpm)    # rotate left
+        bot.set_left_motor_speed(-rpm)
         bot.set_right_motor_speed(rpm)
         time.sleep(DT)
 
@@ -350,7 +353,7 @@ def rotate_360_scan(bot):
 
 
 # ============================================================
-# IMU-guided 90-degree rotate (tapered)
+# IMU-guided 90-degree corner turn (tapered)
 # ============================================================
 def rotate_90(bot, wall_side):
     target_deg = 90.0
@@ -359,8 +362,7 @@ def rotate_90(bot, wall_side):
     while True:
         cur   = bot.get_heading()
         delta = (cur - start + 540) % 360 - 180
-        prog  = abs(delta)
-        rem   = max(0.0, target_deg - prog)
+        rem   = max(0.0, target_deg - abs(delta))
         if rem <= 2.0:
             break
         scale = max(ROTATE_MIN_RPM / ROTATE_RPM, min(1.0, rem / target_deg))
@@ -373,28 +375,27 @@ def rotate_90(bot, wall_side):
 
 
 # ============================================================
-# Nearest wall detection for startup
+# Nearest wall detection
 # ============================================================
-WALL_DETECT_MM = 600   # side distance within which we consider a wall present
-
 def find_nearest_wall_side(bot, default_side):
-    """Check left and right LIDAR windows. Return whichever side has a wall
-    closer than WALL_DETECT_MM, preferring the closer one. Falls back to
-    default_side if no wall is detected on either side."""
     scan       = bot.get_range_image()
     left_dist  = robust_min(scan[85:95],   keep=5)
     right_dist = robust_min(scan[265:275], keep=5)
-
     left_near  = left_dist  < WALL_DETECT_MM
     right_near = right_dist < WALL_DETECT_MM
-
     if left_near and right_near:
         return 'left' if left_dist <= right_dist else 'right'
-    if left_near:
-        return 'left'
-    if right_near:
-        return 'right'
+    if left_near:  return 'left'
+    if right_near: return 'right'
     return default_side
+
+
+# ============================================================
+# PID state helper — resets all terms to zero
+# ============================================================
+def reset_pid(pid):
+    pid['integral']  = 0.0
+    pid['prev_err']  = 0.0
 
 
 # ============================================================
@@ -405,108 +406,33 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
     bot.camera.set_target_colors([(234, 213, 45)], tolerance=0.08)
     time.sleep(0.5)
 
-    wall_side   = find_nearest_wall_side(bot, wall_side)
-    print("Starting wall follow on:", wall_side, "side")
-    state = 'WALL_FOLLOWING'
-    ctrl  = WallFollower(bot, wall_side=wall_side)
-    l_goal_slew  = Slew(SLEW_RPM_PER_TICK)
-    r_goal_slew  = Slew(SLEW_RPM_PER_TICK)
-    prev_error_x = 0.0
+    # PID state for centering (camera x error)
+    center_pid = {'integral': 0.0, 'prev_err': 0.0}
+    # PID state for speed (front LIDAR distance error)
+    speed_pid  = {'integral': 0.0, 'prev_err': 0.0}
+
+    # Slew limiters so motor commands ramp up smoothly
+    l_slew = Slew(SLEW_RPM_PER_TICK)
+    r_slew = Slew(SLEW_RPM_PER_TICK)
+
+    # Startup: 360 scan before anything else
+    print("Startup: scanning for goal")
+    if rotate_360_scan(bot):
+        print("Goal found at startup, heading toward it")
+        state = 'MOTION_TO_GOAL'
+        ctrl  = None
+    else:
+        wall_side = find_nearest_wall_side(bot, wall_side)
+        print("No goal found, wall following on:", wall_side, "side")
+        state = 'WALL_FOLLOWING'
+        ctrl  = WallFollower(bot, wall_side=wall_side)
 
     try:
         while True:
             landmarks = bot.camera.find_landmarks()
             f         = front_mm(bot)
 
-            # Stop when goal is visible and within reach
-            if landmarks and f < GOAL_DISTANCE_MM:
-                print("Goal reached, stopping.")
-                bot.stop_motors()
-                break
-
-            if state == 'MOTION_TO_GOAL':
-                if f < FRONT_STOP_MM:
-                    print("Obstacle detected, switching to WALL_FOLLOWING")
-                    bot.stop_motors()
-                    ctrl  = WallFollower(bot, wall_side=wall_side)
-                    state = 'WALL_FOLLOWING'
-                    time.sleep(0.1)
-                    continue
-
-                if landmarks:
-                    lm      = max(landmarks, key=lambda l: l.width * l.height)
-                    error_x = lm.x - CAMERA_CENTER_X
-
-                    if abs(error_x) <= GOAL_DEAD_ZONE:
-                        turn         = 0.0
-                        prev_error_x = 0.0
-                    else:
-                        d_error_x    = error_x - prev_error_x
-                        turn         = KP_GOAL * error_x + KD_GOAL * d_error_x
-                        turn         = clamp(turn, -GOAL_TURN_CAP, GOAL_TURN_CAP)
-                        prev_error_x = error_x
-
-                    left_spd  = clamp(BASE_SPEED + turn, -MAX_SPEED, MAX_SPEED)
-                    right_spd = clamp(BASE_SPEED - turn, -MAX_SPEED, MAX_SPEED)
-                    bot.set_left_motor_speed(l_goal_slew.step(left_spd))
-                    bot.set_right_motor_speed(r_goal_slew.step(right_spd))
-                else:
-                    # Goal lost — stop and scan to reacquire
-                    bot.stop_motors()
-                    prev_error_x = 0.0
-                    print("Goal lost, scanning to reacquire")
-                    if rotate_360_scan(bot):
-                        print("Goal reacquired, waiting before approach")
-                        time.sleep(3.0)
-                        l_goal_slew.prev = 0.0
-                        r_goal_slew.prev = 0.0
-                    else:
-                        # Could not find goal, return to wall following
-                        print("Goal not found, returning to WALL_FOLLOWING")
-                        ctrl  = WallFollower(bot, wall_side=wall_side)
-                        state = 'WALL_FOLLOWING'
-
-            elif state == 'WALL_FOLLOWING':
-                if landmarks:
-                    print("Goal visible, waiting before approach")
-                    bot.stop_motors()
-                    time.sleep(3.0)
-                    ctrl         = None
-                    state        = 'MOTION_TO_GOAL'
-                    l_goal_slew.prev = 0.0
-                    r_goal_slew.prev = 0.0
-                    prev_error_x = 0.0
-                    continue
-
-                l_rpm, r_rpm = ctrl.step()
-                bot.set_left_motor_speed(l_rpm)
-                bot.set_right_motor_speed(r_rpm)
-
-                if f < FRONT_STOP_MM:
-                    bot.stop_motors()
-                    print("Corner reached, scanning 360 for goal")
-                    if rotate_360_scan(bot):
-                        print("Goal found during scan, waiting before approach")
-                        bot.stop_motors()
-                        time.sleep(3.0)
-                        ctrl         = None
-                        state        = 'MOTION_TO_GOAL'
-                        l_goal_slew.prev = 0.0
-                        r_goal_slew.prev = 0.0
-                        prev_error_x = 0.0
-                    else:
-                        rotate_90(bot, wall_side)
-                        # Drive forward to physically clear the corner so the
-                        # next loop iteration does not immediately re-trigger
-                        t0 = time.time()
-                        while time.time() - t0 < 0.8 and front_mm(bot) > FRONT_STOP_MM:
-                            bot.set_left_motor_speed(BASE_SPEED)
-                            bot.set_right_motor_speed(BASE_SPEED)
-                            time.sleep(DT)
-                        bot.stop_motors()
-                        ctrl = WallFollower(bot, wall_side=wall_side)
-
-            # Camera feed display
+            # Camera feed
             frame = bot.camera.get_frame()
             if frame is not None:
                 display = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -521,6 +447,112 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 200, 255), 2)
                 cv2.imshow('HamBot Camera', display)
                 cv2.waitKey(1)
+
+            # Stop when goal is close enough
+            if landmarks and f < GOAL_DISTANCE_MM:
+                print("Goal reached, stopping.")
+                bot.stop_motors()
+                break
+
+            # ── MOTION TO GOAL ────────────────────────────────────────────
+            if state == 'MOTION_TO_GOAL':
+
+                if f < FRONT_STOP_MM:
+                    # Hit a wall that is not the goal — switch to wall follow
+                    print("Obstacle hit, switching to WALL_FOLLOWING")
+                    bot.stop_motors()
+                    reset_pid(center_pid)
+                    reset_pid(speed_pid)
+                    l_slew.prev = 0.0
+                    r_slew.prev = 0.0
+                    wall_side = find_nearest_wall_side(bot, wall_side)
+                    ctrl  = WallFollower(bot, wall_side=wall_side)
+                    state = 'WALL_FOLLOWING'
+                    continue
+
+                if landmarks:
+                    lm      = max(landmarks, key=lambda l: l.width * l.height)
+                    error_x = lm.x - CAMERA_CENTER_X
+
+                    # Centering PID
+                    if abs(error_x) <= CENTER_DEAD_ZONE:
+                        turn = 0.0
+                        reset_pid(center_pid)
+                    else:
+                        center_pid['integral'] += error_x * DT
+                        center_pid['integral']  = clamp(center_pid['integral'],
+                                                        -CENTER_WINDUP, CENTER_WINDUP)
+                        d_err = (error_x - center_pid['prev_err']) / DT
+                        turn  = (KP_CENTER * error_x
+                                 + KI_CENTER * center_pid['integral']
+                                 + KD_CENTER * d_err)
+                        turn  = clamp(turn, -CENTER_TURN_CAP, CENTER_TURN_CAP)
+                        center_pid['prev_err'] = error_x
+
+                    # Speed PID — slow down as front distance approaches goal
+                    spd_err = f - GOAL_DISTANCE_MM
+                    d_spd   = (spd_err - speed_pid['prev_err']) / DT
+                    base    = KP_SPEED * spd_err + KD_SPEED * d_spd
+                    base    = clamp(base, MIN_APPROACH_RPM, MAX_SPEED)
+                    speed_pid['prev_err'] = spd_err
+
+                    left_spd  = clamp(base + turn, -MAX_SPEED, MAX_SPEED)
+                    right_spd = clamp(base - turn, -MAX_SPEED, MAX_SPEED)
+                    bot.set_left_motor_speed(l_slew.step(left_spd))
+                    bot.set_right_motor_speed(r_slew.step(right_spd))
+
+                else:
+                    # Goal lost — scan to reacquire
+                    bot.stop_motors()
+                    reset_pid(center_pid)
+                    reset_pid(speed_pid)
+                    l_slew.prev = 0.0
+                    r_slew.prev = 0.0
+                    print("Goal lost, scanning to reacquire")
+                    if not rotate_360_scan(bot):
+                        print("Goal not found, switching to WALL_FOLLOWING")
+                        wall_side = find_nearest_wall_side(bot, wall_side)
+                        ctrl  = WallFollower(bot, wall_side=wall_side)
+                        state = 'WALL_FOLLOWING'
+
+            # ── WALL FOLLOWING ────────────────────────────────────────────
+            elif state == 'WALL_FOLLOWING':
+
+                if landmarks:
+                    print("Goal visible, switching to MOTION_TO_GOAL")
+                    bot.stop_motors()
+                    reset_pid(center_pid)
+                    reset_pid(speed_pid)
+                    l_slew.prev = 0.0
+                    r_slew.prev = 0.0
+                    ctrl  = None
+                    state = 'MOTION_TO_GOAL'
+                    continue
+
+                l_rpm, r_rpm = ctrl.step()
+                bot.set_left_motor_speed(l_rpm)
+                bot.set_right_motor_speed(r_rpm)
+
+                if f < FRONT_STOP_MM:
+                    bot.stop_motors()
+                    print("Corner: scanning 360 for goal")
+                    if rotate_360_scan(bot):
+                        print("Goal found, switching to MOTION_TO_GOAL")
+                        reset_pid(center_pid)
+                        reset_pid(speed_pid)
+                        l_slew.prev = 0.0
+                        r_slew.prev = 0.0
+                        ctrl  = None
+                        state = 'MOTION_TO_GOAL'
+                    else:
+                        rotate_90(bot, wall_side)
+                        t0 = time.time()
+                        while time.time() - t0 < 0.8 and front_mm(bot) > FRONT_STOP_MM:
+                            bot.set_left_motor_speed(CRUISE_RPM)
+                            bot.set_right_motor_speed(CRUISE_RPM)
+                            time.sleep(DT)
+                        bot.stop_motors()
+                        ctrl = WallFollower(bot, wall_side=wall_side)
 
             time.sleep(DT)
 
