@@ -1,5 +1,6 @@
 from robot_systems.robot import HamBot
 import time, math
+import cv2
 
 # ============================================================
 # Bug Zero parameters
@@ -505,10 +506,27 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                         bot.stop_motors()
                         ctrl = WallFollower(bot, wall_side=wall_side)
 
+            # Camera feed display
+            frame = bot.camera.get_frame()
+            if frame is not None:
+                display = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                for lm in landmarks:
+                    x1 = lm.x - lm.width  // 2
+                    y1 = lm.y - lm.height // 2
+                    x2 = lm.x + lm.width  // 2
+                    y2 = lm.y + lm.height // 2
+                    cv2.rectangle(display, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    cv2.circle(display, (lm.x, lm.y), 4, (0, 255, 0), -1)
+                cv2.putText(display, state, (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 200, 255), 2)
+                cv2.imshow('HamBot Camera', display)
+                cv2.waitKey(1)
+
             time.sleep(DT)
 
     finally:
         bot.stop_motors()
+        cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':
