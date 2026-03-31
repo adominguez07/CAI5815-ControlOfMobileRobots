@@ -11,6 +11,7 @@ CAMERA_CENTER_X  = CAMERA_WIDTH // 2
 BASE_SPEED       = 20           # RPM for motion-to-goal straight driving
 MAX_SPEED        = 35           # motor cap for motion-to-goal
 KP_GOAL          = 0.06         # camera centering proportional gain
+KD_GOAL          = 0.03         # camera centering derivative gain (damps overshoot)
 
 # ============================================================
 # Wall follower timing and targets
@@ -405,8 +406,9 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
     print("Starting wall follow on:", wall_side, "side")
     state = 'WALL_FOLLOWING'
     ctrl  = WallFollower(bot, wall_side=wall_side)
-    l_goal_slew = Slew(SLEW_RPM_PER_TICK)
-    r_goal_slew = Slew(SLEW_RPM_PER_TICK)
+    l_goal_slew  = Slew(SLEW_RPM_PER_TICK)
+    r_goal_slew  = Slew(SLEW_RPM_PER_TICK)
+    prev_error_x = 0.0
 
     try:
         while True:
@@ -431,12 +433,15 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                 if landmarks:
                     lm        = max(landmarks, key=lambda l: l.width * l.height)
                     error_x   = lm.x - CAMERA_CENTER_X
-                    turn      = KP_GOAL * error_x
+                    d_error_x = error_x - prev_error_x
+                    turn      = KP_GOAL * error_x + KD_GOAL * d_error_x
+                    prev_error_x = error_x
                     left_spd  = clamp(BASE_SPEED + turn, -MAX_SPEED, MAX_SPEED)
                     right_spd = clamp(BASE_SPEED - turn, -MAX_SPEED, MAX_SPEED)
                 else:
-                    left_spd  = BASE_SPEED
-                    right_spd = BASE_SPEED
+                    prev_error_x = 0.0
+                    left_spd     = BASE_SPEED
+                    right_spd    = BASE_SPEED
 
                 bot.set_left_motor_speed(l_goal_slew.step(left_spd))
                 bot.set_right_motor_speed(r_goal_slew.step(right_spd))
@@ -445,10 +450,11 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                 if landmarks:
                     print("Goal visible, switching to MOTION_TO_GOAL")
                     bot.stop_motors()
-                    ctrl  = None
-                    state = 'MOTION_TO_GOAL'
+                    ctrl         = None
+                    state        = 'MOTION_TO_GOAL'
                     l_goal_slew.prev = 0.0
                     r_goal_slew.prev = 0.0
+                    prev_error_x = 0.0
                     time.sleep(0.1)
                     continue
 
@@ -462,9 +468,10 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                     if rotate_360_scan(bot):
                         print("Goal found during scan, switching to MOTION_TO_GOAL")
                         ctrl  = None
-                        state = 'MOTION_TO_GOAL'
+                        state        = 'MOTION_TO_GOAL'
                         l_goal_slew.prev = 0.0
                         r_goal_slew.prev = 0.0
+                        prev_error_x = 0.0
                     else:
                         rotate_90(bot, wall_side)
                         # Drive forward to physically clear the corner so the
