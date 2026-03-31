@@ -378,6 +378,8 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
 
     state = 'MOTION_TO_GOAL'
     ctrl  = None
+    l_goal_slew = Slew(SLEW_RPM_PER_TICK)
+    r_goal_slew = Slew(SLEW_RPM_PER_TICK)
 
     try:
         while True:
@@ -409,8 +411,8 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                     left_spd  = BASE_SPEED
                     right_spd = BASE_SPEED
 
-                bot.set_left_motor_speed(left_spd)
-                bot.set_right_motor_speed(right_spd)
+                bot.set_left_motor_speed(l_goal_slew.step(left_spd))
+                bot.set_right_motor_speed(r_goal_slew.step(right_spd))
 
             elif state == 'WALL_FOLLOWING':
                 if landmarks:
@@ -418,6 +420,8 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                     bot.stop_motors()
                     ctrl  = None
                     state = 'MOTION_TO_GOAL'
+                    l_goal_slew.prev = 0.0
+                    r_goal_slew.prev = 0.0
                     time.sleep(0.1)
                     continue
 
@@ -432,6 +436,8 @@ def run_bug_zero(wall_side=WALL_FOLLOW_SIDE):
                         print("Goal found during scan, switching to MOTION_TO_GOAL")
                         ctrl  = None
                         state = 'MOTION_TO_GOAL'
+                        l_goal_slew.prev = 0.0
+                        r_goal_slew.prev = 0.0
                     else:
                         rotate_90(bot, wall_side)
                         # Drive forward to physically clear the corner so the
