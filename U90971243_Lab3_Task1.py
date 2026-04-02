@@ -5,6 +5,9 @@ import time
 # Tuneable parameters
 # ============================================================
 
+# Wall side — change to 'left' or 'right' before each run
+WALL_FOLLOW_SIDE    = 'left'
+
 # Goal
 GOAL_DISTANCE_MM    = 250.0
 CAMERA_WIDTH        = 640
@@ -351,9 +354,9 @@ def run_bug_zero():
         l_slew.prev = 0.0
         r_slew.prev = 0.0
 
-    # ── Startup: find which wall to follow ───────────────────
-    wall_side = detect_nearest_wall(bot)
-    print("Nearest wall:", wall_side)
+    # ── Startup: wall side set by WALL_FOLLOW_SIDE variable ──
+    wall_side = WALL_FOLLOW_SIDE
+    print("Wall side:", wall_side)
 
     # ── Startup: 360 scan for goal ────────────────────────────
     print("Initial 360 scan...")
