@@ -6,7 +6,7 @@ import time
 # ============================================================
 
 # Wall side — change to 'left' or 'right' before each run
-WALL_FOLLOW_SIDE    = 'left'
+WALL_FOLLOW_SIDE    = 'right'
 
 # Goal
 GOAL_DISTANCE_MM    = 250.0
