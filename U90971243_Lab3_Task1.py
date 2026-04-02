@@ -1,4 +1,4 @@
-from robot_systems.robot import HamBot
+from HamBot.src.robot_systems.robot import HamBot
 import time
 
 # ============================================================
