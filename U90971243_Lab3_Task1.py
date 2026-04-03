@@ -336,7 +336,7 @@ def rotate_90(bot, wall_side):
 def run_bug_zero():
     bot = HamBot(lidar_enabled=True, camera_enabled=True)
     bot.max_motor_speed = 60
-    bot.camera.set_target_colors([(162, 48, 135)])
+    bot.camera.set_target_colors([(206, 56, 79)])
     time.sleep(0.5)
 
     # Slew limiters for goal-approach commands
