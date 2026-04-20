@@ -221,10 +221,10 @@ def main():
 
     # Configure target landmark colors (RGB) and tolerance.
     target_colors = [
-        (178, 16, 65),   # pink/mag
-        (113, 177, 185),     #light blue
-        (219, 120, 0),   # orange
-        (255, 0, 183),  # unknown rn
+        (8, 32, 145),   # top-left    — Blue
+        (199,24,94),   # top-right   — red
+        (245, 227,83),   # bottom-left — yello
+        (34,159,128),   # bottom-right — green
     ]
     if getattr(bot, "camera", None):
         bot.camera.set_target_colors(target_colors, tolerance=0.25)
