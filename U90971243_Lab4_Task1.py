@@ -17,10 +17,10 @@ LANDMARK_TOL    = 0.10        # color tolerance for camera detection
 
 # Landmark positions in cm (continuous coordinates, origin = center of cell 13)
 LANDMARKS = {
-    'yellow': ((-150,  150), (255, 180,  0)),   # top-left corner
-    'blue':   (( 150,  150), (  0,  80, 255)),   # top-right corner
+    'yellow': ((-150,  150), (178,  16,  65)),   # top-left corner
+    'blue':   (( 150,  150), (113, 177, 185)),   # top-right corner
     'green':  ((-150, -150), (  0, 180,  50)),   # bottom-left corner
-    'pink':   (( 150, -150), (255,   0, 180)),   # bottom-right corner
+    'pink':   (( 150, -150), (219, 120,   0)),   # bottom-right corner
 }
 
 
