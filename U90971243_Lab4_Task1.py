@@ -38,10 +38,10 @@ LANDMARK_POSITIONS = {
 
 # RGB colors the camera searches for (matched to physical markers)
 TARGET_COLORS = [
-    (178,  16,  65),   # top-left    — crimson
-    (113, 177, 185),   # top-right   — teal
-    (  0, 180,  50),   # bottom-left — green
-    (219, 120,   0),   # bottom-right — orange
+    (8, 32, 145),   # top-left    — Blue
+    (199,24,94),   # top-right   — red
+    (245, 227,83),   # bottom-left — yello
+    (34,159,128),   # bottom-right — green
 ]
 
 
