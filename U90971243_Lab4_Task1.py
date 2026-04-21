@@ -151,29 +151,27 @@ def pixel_to_lidar_index(px: int, img_width: int) -> int:
 
 
 def measure_landmark_distances(bot: HamBot,
-                                min_area: int = 80,
-                                min_range_m: float = 0.40,
+                                min_area: int = 500,
+                                min_range_m: float = 0.20,
                                 max_range_m: float = 3.0,
-                                lidar_window: int = 10,
-                                debug: bool = False) -> Dict[str, float]:
+                                lidar_window: int = 10) -> list:
     """
     Detect colored landmarks and fuse with LIDAR to estimate range.
-    Uses the maximum reading in a window around the computed LIDAR angle
-    to avoid hitting nearby walls instead of the actual landmark.
-    Returns {landmark_name: distance_m}.
+    Returns list of (name, dist_m, pixel_x) for each valid detection.
+    pixel_x is used by the caller to prefer readings taken when the
+    landmark is closest to the center of the camera frame.
     """
     cam = getattr(bot, "camera", None)
     if cam is None:
-        print("Camera not available.")
-        return {}
+        return []
 
     scan = bot.get_range_image()
     frame = cam.get_frame(copy=False)
     detections = cam.find_landmarks(min_area=min_area)
 
-    distances_m: Dict[str, float] = {}
+    results = []
     if frame is None or scan == -1 or not detections:
-        return distances_m
+        return results
 
     img_w = frame.shape[1]
     for lm in detections:
@@ -182,30 +180,18 @@ def measure_landmark_distances(bot: HamBot,
             continue
         lidar_idx = pixel_to_lidar_index(lm.x, img_w)
 
-        # Take the maximum valid reading in a window around the computed angle.
-        # Max = farthest reading = most likely through a corridor to the marker,
-        # not a close wall in the foreground.
-        window_vals = []
-        for i in range(lidar_idx - lidar_window, lidar_idx + lidar_window + 1):
-            v = scan[i % 360]
-            if v and v > 0:
-                window_vals.append(v)
+        # Max reading in window — avoids nearby walls blocking the landmark
+        window_vals = [scan[i % 360] for i in range(lidar_idx - lidar_window,
+                                                      lidar_idx + lidar_window + 1)
+                       if scan[i % 360] and scan[i % 360] > 0]
         if not window_vals:
             continue
-        raw_mm = max(window_vals)
+        dist_m = max(window_vals) / 1000.0
 
-        dist_m = raw_mm / 1000.0
         if dist_m < min_range_m or dist_m > max_range_m:
-            if debug:
-                print(f"  {name}: REJECTED dist={dist_m:.2f} m (out of range), "
-                      f"rgb=({lm.r},{lm.g},{lm.b})")
             continue
-        if name not in distances_m or dist_m < distances_m[name]:
-            distances_m[name] = dist_m
-        if debug:
-            print(f"  {name}: pixel x={lm.x}, lidar_idx={lidar_idx}, "
-                  f"dist={dist_m:.2f} m, rgb=({lm.r},{lm.g},{lm.b})")
-    return distances_m
+        results.append((name, dist_m, lm.x))
+    return results
 
 
 # ============================================================
@@ -217,8 +203,9 @@ def rotate_and_collect(bot: HamBot,
                        rpm: float = 9.0,
                        dt: float = 0.05):
     """
-    Rotate in place one full revolution, collecting landmark distances
-    as they enter view. Keeps the best (closest) reading per landmark.
+    Rotate in place one full revolution, collecting landmark distances.
+    Keeps the reading taken when each landmark was closest to camera center,
+    which gives the most accurate LIDAR distance to the marker.
     """
     start_heading = bot.get_heading(blocking=True, wait_timeout=0.5)
     if start_heading is None:
@@ -226,7 +213,10 @@ def rotate_and_collect(bot: HamBot,
         return
 
     total_rotated = 0.0
-    last_heading = start_heading
+    last_heading  = start_heading
+    cam_center    = 320   # pixels, for 640-wide frame
+    # Tracks how centered each landmark was at its best reading
+    best_centering: Dict[str, int] = {}
 
     print("Rotating 360° to collect landmarks...")
     while total_rotated < 360.0:
@@ -244,10 +234,12 @@ def rotate_and_collect(bot: HamBot,
         bot.set_left_motor_speed(-rpm * scale)
         bot.set_right_motor_speed( rpm * scale)
 
-        new_meas = measure_landmark_distances(bot, min_area=500, debug=True)
-        for name, dist in new_meas.items():
-            if name not in measurements or dist < measurements[name]:
-                measurements[name] = dist
+        for name, dist, pixel_x in measure_landmark_distances(bot):
+            centering = abs(pixel_x - cam_center)
+            if name not in best_centering or centering < best_centering[name]:
+                best_centering[name] = centering
+                measurements[name]   = dist
+                print(f"  {name}: dist={dist:.2f} m  pixel_x={pixel_x}  centering={centering}")
 
         time.sleep(dt)
 
