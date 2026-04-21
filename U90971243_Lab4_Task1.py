@@ -30,10 +30,10 @@ CAM_FOV_DEG  = 62.0    # approximate horizontal FOV of PiCamera v2
 # ============================================================
 
 LANDMARK_POSITIONS = {
-    "crimson": (-1.2,  1.2),   # top-left
-    "teal":    ( 1.2,  1.2),   # top-right
-    "green":   (-1.2, -1.2),   # bottom-left
-    "orange":  ( 1.2, -1.2),   # bottom-right
+    "blue":   (-1.2,  1.2),   # top-left
+    "red":    ( 1.2,  1.2),   # top-right
+    "yellow": (-1.2, -1.2),   # bottom-left
+    "green":  ( 1.2, -1.2),   # bottom-right
 }
 
 # RGB colors the camera searches for (matched to physical markers)
@@ -61,10 +61,10 @@ def classify_landmark_by_color(color: Tuple[float, float, float]):
     """Return the landmark name whose target color is nearest in normalized RGB space."""
     r, g, b = normalize_color(color)
     targets = {
-        "crimson": (0.698, 0.063, 0.255),
-        "teal":    (0.443, 0.694, 0.725),
-        "green":   (0.000, 0.706, 0.196),
-        "orange":  (0.859, 0.471, 0.000),
+        "blue":   (0.031, 0.125, 0.569),   # (8,  32, 145)
+        "red":    (0.780, 0.094, 0.369),   # (199, 24,  94)
+        "yellow": (0.961, 0.890, 0.325),   # (245,227,  83)
+        "green":  (0.133, 0.624, 0.502),   # ( 34,159, 128)
     }
     best = None
     best_dist = 1e9
@@ -73,8 +73,8 @@ def classify_landmark_by_color(color: Tuple[float, float, float]):
         if dist < best_dist:
             best_dist = dist
             best = name
-    # Gate: reject if too far from every target (tune if needed)
-    if best_dist <= 0.25:
+    # Gate: reject if too far from every target
+    if best_dist <= 0.10:
         return best
     return None
 
@@ -244,7 +244,7 @@ def rotate_and_collect(bot: HamBot,
         bot.set_left_motor_speed(-rpm * scale)
         bot.set_right_motor_speed( rpm * scale)
 
-        new_meas = measure_landmark_distances(bot, debug=True)
+        new_meas = measure_landmark_distances(bot, min_area=500, debug=True)
         for name, dist in new_meas.items():
             if name not in measurements or dist < measurements[name]:
                 measurements[name] = dist
@@ -264,7 +264,7 @@ def main():
     time.sleep(2.0)   # let sensors warm up
 
     if getattr(bot, "camera", None):
-        bot.camera.set_target_colors(TARGET_COLORS, tolerance=0.25)
+        bot.camera.set_target_colors(TARGET_COLORS, tolerance=0.15)
 
     measurements: Dict[str, float] = {}
 
