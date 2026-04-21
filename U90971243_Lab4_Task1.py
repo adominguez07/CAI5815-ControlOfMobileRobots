@@ -271,6 +271,18 @@ def main():
         print(f"\nERROR: only {len(measurements)} landmark(s) visible — need at least 3.")
         return
 
+    # Outlier filter: drop any reading that is more than 0.8 m smaller than
+    # the median of all readings. A wall blocking a far marker makes it appear
+    # very close while all others are large — this catches that case.
+    if len(measurements) >= 3:
+        vals = sorted(measurements.values())
+        median = vals[len(vals) // 2]
+        filtered = {n: d for n, d in measurements.items() if d >= median * 0.65}
+        dropped = set(measurements) - set(filtered)
+        if dropped:
+            print(f"Outlier rejected (wall likely blocking): {dropped}")
+        measurements = filtered if len(filtered) >= 3 else measurements
+
     x_est, y_est = trilaterate_position(LANDMARK_POSITIONS, measurements)
     cell_index, row, col = position_to_cell_index(x_est, y_est)
 
