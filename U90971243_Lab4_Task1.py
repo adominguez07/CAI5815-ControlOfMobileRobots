@@ -152,10 +152,14 @@ def pixel_to_lidar_index(px: int, img_width: int) -> int:
 
 def measure_landmark_distances(bot: HamBot,
                                 min_area: int = 80,
+                                min_range_m: float = 0.40,
                                 max_range_m: float = 3.0,
+                                lidar_window: int = 10,
                                 debug: bool = False) -> Dict[str, float]:
     """
     Detect colored landmarks and fuse with LIDAR to estimate range.
+    Uses the maximum reading in a window around the computed LIDAR angle
+    to avoid hitting nearby walls instead of the actual landmark.
     Returns {landmark_name: distance_m}.
     """
     cam = getattr(bot, "camera", None)
@@ -177,11 +181,24 @@ def measure_landmark_distances(bot: HamBot,
         if not name:
             continue
         lidar_idx = pixel_to_lidar_index(lm.x, img_w)
-        raw_mm = scan[lidar_idx] if 0 <= lidar_idx < len(scan) else -1
-        if raw_mm is None or raw_mm <= 0:
+
+        # Take the maximum valid reading in a window around the computed angle.
+        # Max = farthest reading = most likely through a corridor to the marker,
+        # not a close wall in the foreground.
+        window_vals = []
+        for i in range(lidar_idx - lidar_window, lidar_idx + lidar_window + 1):
+            v = scan[i % 360]
+            if v and v > 0:
+                window_vals.append(v)
+        if not window_vals:
             continue
+        raw_mm = max(window_vals)
+
         dist_m = raw_mm / 1000.0
-        if dist_m > max_range_m:
+        if dist_m < min_range_m or dist_m > max_range_m:
+            if debug:
+                print(f"  {name}: REJECTED dist={dist_m:.2f} m (out of range), "
+                      f"rgb=({lm.r},{lm.g},{lm.b})")
             continue
         if name not in distances_m or dist_m < distances_m[name]:
             distances_m[name] = dist_m
@@ -227,7 +244,7 @@ def rotate_and_collect(bot: HamBot,
         bot.set_left_motor_speed(-rpm * scale)
         bot.set_right_motor_speed( rpm * scale)
 
-        new_meas = measure_landmark_distances(bot, debug=False)
+        new_meas = measure_landmark_distances(bot, debug=True)
         for name, dist in new_meas.items():
             if name not in measurements or dist < measurements[name]:
                 measurements[name] = dist
